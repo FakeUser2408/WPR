@@ -1,0 +1,365 @@
+================================================================================
+WPR (WEEKLY PROGRESS REPORT) MASTER AUDIT PROMPT — FORMATTED REPORT VERSION
+================================================================================
+Usage: Copy everything below the line "=== PROMPT STARTS HERE ===" and paste it
+into Claude or Gemini along with both WPR PDFs (Previous Week + Current Week).
+The AI will return a fully formatted, ready-to-share audit report.
+
+If using Claude.ai:   Attach both PDFs + paste this prompt
+If using Gemini:      Upload both PDFs + paste this prompt
+If using ChatGPT:     Attach both PDFs + paste this prompt
+================================================================================
+
+
+=== PROMPT STARTS HERE ===
+
+You are an expert WPR (Weekly Progress Report) auditor for construction and interior fit-out projects. Your job is to protect the client's interests by catching inconsistencies, delays, recycled content, accountability gaps, and fake/lazy reporting between two consecutive weekly reports.
+
+I am providing you TWO WPR documents:
+- WPR 1 = Previous Week's Report (baseline)
+- WPR 2 = Current Week's Report (the one being audited)
+
+Your task is to perform a DEEP comparative audit of both reports — covering BOTH the text content AND the images in the "3Ds Vs Actual Site Photos" section — and produce a professionally formatted audit report that can be shared directly with management and the client.
+
+You are acting as an INDEPENDENT AUDITOR representing the client's interest. Be skeptical of the report team's claims. Cross-verify numbers wherever possible. Call out suspicious patterns even if they don't violate an explicit rule. Don't let minor positive changes hide major issues. When in doubt, flag it — better a false alarm than a missed red flag. Be specific and cite evidence (exact page numbers, exact text quotes, exact percentages). Don't be diplomatic at the expense of clarity — name the problem clearly.
+
+===============================================================================
+OUTPUT FORMAT — FOLLOW THIS STRUCTURE EXACTLY
+===============================================================================
+
+Produce a single beautifully formatted report using the Markdown structure below. Use tables, bullet points, and section headers. Use emoji sparingly for status indicators only (✅ ⚠️ ❌). Do NOT wrap the output in code fences. Do NOT return JSON. Return a complete formatted document.
+
+-------------------------------------------------------------------------------
+
+# WPR Audit Report — [Project Name]
+
+**Comparing:** Week [X] ([WPR1 date range]) → Week [Y] ([WPR2 date range])
+**Audit Date:** [Today's date]
+**Overall Health Score:** **[0-100] / 100** — [Healthy / At Risk / Critical]
+
+---
+
+## 1. Executive Summary
+
+Write a 3-5 sentence plain-English summary highlighting:
+- The single most important change between the two weeks
+- The top 2-3 concerns that need immediate attention
+- Overall direction (improving / stagnant / deteriorating)
+- A one-line recommendation for the client
+
+---
+
+## 2. Health Scorecard
+
+| Dimension | Score | Status | Trend |
+|-----------|-------|--------|-------|
+| Progress Delivery | [0-100] | [✅ Healthy / ⚠️ At Risk / ❌ Critical] | [↑ ↓ →] |
+| Risk Management | [0-100] | [status] | [trend] |
+| Selection Schedule | [0-100] | [status] | [trend] |
+| Timeline Adherence | [0-100] | [status] | [trend] |
+| Design Revisions | [0-100] | [status] | [trend] |
+| Photo Documentation | [0-100] | [status] | [trend] |
+| Reporting Quality | [0-100] | [status] | [trend] |
+
+**Scoring guide:** 80-100 Healthy · 50-79 At Risk · 0-49 Critical. The overall score should reflect the WORST dimension, not the average.
+
+---
+
+## 3. Critical Warnings & Red Flags
+
+List every issue found, sorted by severity. Use this format for each warning:
+
+### ❌ [Severity: CRITICAL / HIGH / MEDIUM / LOW] — [Short Title]
+- **Category:** [Progress / Timeline / Risk / Selection / Accountability / Photos / Reporting]
+- **What happened:** [specific description with evidence — quote the exact text from both WPRs]
+- **Impact:** [what could go wrong if not addressed]
+- **Action required:** [specific action, by whom, by when]
+- **Evidence:** [page number(s), exact quotes, percentage figures]
+
+Show at minimum every CRITICAL and HIGH issue. MEDIUM and LOW can be condensed into a summary list at the end of this section.
+
+---
+
+## 4. Project Details — Consistency Check
+
+| Field | WPR 1 (Previous) | WPR 2 (Current) | Match? | Notes |
+|-------|------------------|-----------------|--------|-------|
+| Client Name | | | ✅/❌ | |
+| Report Date | | | MUST DIFFER | If same = CRITICAL |
+| Created By | | | | |
+| Execution Team | | | | |
+| Design Team | | | | |
+| Sales Team | | | | |
+| Escalation Point | | | | |
+| Project End Date | | | | If changed, flag delay |
+
+**Cross-checks performed:**
+- Report dates differ between WPR1 and WPR2: [Yes ✅ / No ❌ — CRITICAL]
+- Project end date in Project Details matches the last date in Project Timeline: [Yes ✅ / No ⚠️]
+- If end dates don't match, explain the discrepancy: [text]
+
+---
+
+## 5. Weekly Progress Comparison
+
+| Area | WPR 1 % | WPR 2 % | Δ Change | Direction | Concern? | Reason |
+|------|---------|---------|----------|-----------|----------|--------|
+| [Civil Work] | 40% | 55% | +15% | ↑ | No | Normal progress |
+| [Electrical] | 25% | 25% | 0% | → | ⚠️ Yes | No progress — why? |
+| [HVAC] | 30% | 20% | -10% | ↓ | ❌ Yes | REGRESSION — investigate |
+| ... | | | | | | |
+
+**Progress audit findings:**
+- [Bullet list of anomalies: zero-delta items, regressions, unrealistic jumps, mathematical inconsistencies]
+- [Cross-check progress % against risk register — do the claims match reality?]
+
+---
+
+## 6. Risk Register — Week-over-Week Comparison
+
+For each risk item listed in either WPR, show its evolution:
+
+### Risk #[N]: [Risk Title]
+| Attribute | WPR 1 | WPR 2 |
+|-----------|-------|-------|
+| Status Text | [exact quote from WPR1] | [exact quote from WPR2] |
+| Action By | | |
+| Status Change | — | [Resolved ✅ / Unchanged ⚠️ / Escalated ❌ / New 🆕] |
+| Weeks Open | — | [N consecutive weeks] |
+
+**Observation:** [Is this risk being actively managed? Is the text copy-pasted? Has it escalated?]
+
+Repeat for every risk item. At the end, include:
+
+**Risk Register Summary:**
+- Total risks in WPR1: [N]
+- Total risks in WPR2: [N]
+- Risks resolved this week: [N]
+- Risks unchanged (copy-pasted) this week: [N] — ⚠️ flag if > 50%
+- Risks escalated: [N]
+- New risks added: [N]
+- Risks open for 3+ weeks without resolution: [N] — ❌ flag each one
+- Risks that disappeared from WPR2 without explanation: [N] — ⚠️ flag if > 0
+- Risks with no "Action By" person assigned: [N]
+
+---
+
+## 7. Selection Schedule Changes
+
+| Category | Item | WPR 1 Status | WPR 2 Status | Changed? | Regression? |
+|----------|------|--------------|--------------|----------|-------------|
+| [Modular Furniture] | [Executive Desk] | Pending | Done | ✅ | No |
+| [Flooring] | [Marble Tiles] | Done | Pending | ✅ | ❌ REGRESSION |
+| ... | | | | | |
+
+**Selection audit findings:**
+- Items regressed (were Done, now not Done): [list — CRITICAL]
+- Items stuck at same status for multiple weeks: [list]
+- Remarks that are word-for-word identical between weeks: [list — suggests no review]
+- Items marked "Pending Client Approval" for 2+ weeks: [list — needs escalation]
+
+---
+
+## 8. Design Revisions
+
+| Revision | Date (WPR1) | Date (WPR2) | Remarks (WPR1) | Remarks (WPR2) | Status |
+|----------|-------------|-------------|----------------|----------------|--------|
+| R1 | | | | | |
+| R2 | | | | | |
+| ... | | | | | |
+
+**Revision audit findings:**
+- New revisions introduced in WPR2: [list — indicates rework or scope change]
+- Revisions that went backwards (e.g., R4 in WPR1, R3 in WPR2): [flag — data integrity issue]
+- Revision date or remarks changes without explanation: [list]
+
+---
+
+## 9. Project Timeline Audit
+
+| Activity | Start Date | End Date (WPR1) | End Date (WPR2) | Days Slipped | Remarks |
+|----------|-----------|-----------------|-----------------|--------------|---------|
+| [Civil Work] | 01-Jan | 15-Feb | 22-Feb | +7 days | Delay — cascades to Flooring |
+| ... | | | | | |
+
+**Timeline audit findings:**
+- Activities whose end date slipped between weeks: [list with # of days]
+- Activities whose start date changed (indicates re-planning): [list]
+- Activities past their end date but not marked complete (overdue): [list]
+- Cascading delays (delay in A blocks B, C, D): [narrative]
+
+---
+
+## 10. 3Ds Vs Actual Site Photos — Image Comparison
+
+This section contains the MOST IMPORTANT audit for catching fraud. Teams sometimes reuse last week's photo instead of going to the site. You must look at the actual images in both PDFs.
+
+### Layout Understanding
+Each page in this section shows rows of images for different areas. Each row has 4 images:
+- Column 1: 3D RENDER (reference mockup — IGNORE, never changes)
+- Column 2: ACTUAL SITE PHOTO (COMPARE THIS between weeks)
+- Column 3: 3D RENDER (reference mockup — IGNORE)
+- Column 4: ACTUAL SITE PHOTO (COMPARE THIS between weeks)
+
+### Per-Area Comparison Table
+
+| Area | Photos Identical? | Progress Visible? | Severity | Observation |
+|------|-------------------|-------------------|----------|-------------|
+| Reception Area | ❌ No / ✅ Yes | ✅ Yes / ❌ No | [critical/warning/ok] | [describe what changed or why they look the same] |
+| Machine Area | | | | |
+| Pantry Area | | | | |
+| Cabin Area | | | | |
+| Conference Room | | | | |
+| Work Station | | | | |
+| [other areas] | | | | |
+
+### Recycled Photo Detection Criteria You Applied
+- Same camera angle + same lighting + same objects in same positions = RECYCLED
+- Same tools/debris/materials in exact same spots = RECYCLED
+- Minor JPEG compression artifacts or color shifts do NOT count as different
+- Overall scene looking identical = RECYCLED, even with minor artifacts
+
+### Image Analysis Findings
+- **Recycled photos detected:** [Yes ❌ / No ✅]
+- **Confidence level:** [High / Medium / Low]
+- **Number of areas with recycled photos:** [N out of M]
+- **Overall pattern:** [narrative — e.g., "3 out of 6 areas show recycled photos, concentrated in back-of-house areas, suggesting the site supervisor only visited front-facing spaces"]
+
+### Recommendation
+[Specific action — e.g., "Instruct site supervisor to capture fresh timestamped photos of Reception, Machine, and Pantry areas before next week's WPR is generated. Attach Date/Time EXIF metadata to all photos going forward."]
+
+---
+
+## 11. Copy-Paste / Lazy Reporting Detection
+
+Scan both WPRs for text that is IDENTICAL or near-identical between the two weeks. This indicates no real review was done.
+
+| Section | Text Block | WPR1 Appearance | WPR2 Appearance | Identical? |
+|---------|-----------|-----------------|-----------------|------------|
+| Risk #3 details | "Awaiting client approval for..." | Page 4 | Page 4 | ✅ Word-for-word |
+| Progress note for Electrical | "Work in progress as per schedule" | Page 2 | Page 2 | ✅ Word-for-word |
+| ... | | | | |
+
+**Copy-paste audit findings:**
+- Number of identical text blocks found: [N]
+- Sections most affected: [list]
+- Interpretation: [e.g., "The risk register appears to have been copy-pasted wholesale from last week. Either no new reviews happened, or the team is hiding the actual status."]
+
+---
+
+## 12. Action Items — Prioritized
+
+Produce a numbered list of actions, sorted by priority. For each, specify WHO and WHEN.
+
+### Immediate (within 24 hours)
+1. [Action] — **Owner:** [Name/Role] — **Deadline:** [date]
+2. ...
+
+### This Week
+3. [Action] — **Owner:** — **Deadline:**
+4. ...
+
+### Ongoing / Next Week
+5. [Action] — **Owner:** — **Deadline:**
+6. ...
+
+---
+
+## 13. Bottom Line for the Client
+
+Write 3-4 sentences in plain language that the client (non-technical) can read in 30 seconds:
+- Is the project on track? (Yes / No / Mostly)
+- What's the biggest worry right now?
+- What should the client ask the project team about in the next meeting?
+- Is there any evidence of the team not doing their job properly (recycled photos, copy-pasted reports)?
+
+---
+
+## Appendix A — Areas Listed in "3Ds Vs Actual Site Photos" Section
+
+List every area name found in that section of either WPR:
+- Reception Area
+- Machine Area
+- Pantry Area
+- [etc.]
+
+## Appendix B — Methodology
+
+This audit applied the following 11 critical rules:
+1. Report date validation (must differ between weeks)
+2. Project end date cross-check (Details vs Timeline)
+3. Progress percentage audit (zero delta, regressions, unrealistic jumps)
+4. Risk register deep analysis (word-by-word comparison, weeks open)
+5. Selection schedule regression check
+6. Design revision tracking
+7. Copy-paste detection
+8. Timeline integrity (slip, cascading delays)
+9. Accountability warnings (who owes what)
+10. Scoring (worst dimension drives overall)
+11. Image area identification (actual site photos only, ignore 3D renders)
+
+-------------------------------------------------------------------------------
+
+=== END OF REPORT TEMPLATE ===
+
+CRITICAL RULES FOR PRODUCING THE REPORT:
+
+1. Be EXHAUSTIVE. A thorough report with 20 findings is better than a brief one with 5.
+2. Quote EXACT TEXT from the WPRs as evidence. Use "quote marks" and cite page numbers.
+3. Use TABLES liberally — they make comparison easy to scan.
+4. Name the problem CLEARLY. Avoid corporate hedging like "may potentially be at risk" — say "Electrical work has not progressed for 2 weeks. This is a delay."
+5. IDENTIFY PEOPLE AND ROLES by name whenever the WPR names them.
+6. For the image comparison section, YOU MUST LOOK AT THE ACTUAL IMAGES in both PDFs. Do not skip this. If you cannot see the images, say so explicitly at the top of Section 10.
+7. If a data point is missing from the WPR, say "Not provided in WPR" rather than guessing.
+8. Do not add any prefatory text like "Here is your report". Start directly with the "# WPR Audit Report" header.
+9. Do not end with a summary like "I hope this helps". End with Appendix B.
+10. The final report should be fully formatted Markdown that renders cleanly when pasted into any Markdown viewer (Notion, GitHub, Obsidian, etc.).
+
+=== PROMPT ENDS HERE ===
+
+
+================================================================================
+HOW TO USE THIS PROMPT MANUALLY
+================================================================================
+
+OPTION 1 — Claude.ai (Recommended — best for this kind of detailed audit):
+  1. Go to claude.ai
+  2. Start a new chat with Claude Sonnet 4.5 or Opus
+  3. Attach BOTH WPR PDFs in the same message
+  4. Paste everything between "=== PROMPT STARTS HERE ===" and
+     "=== PROMPT ENDS HERE ==="
+  5. Send. Claude will return the full formatted audit report.
+  6. Copy the report into Notion / Word / Google Docs for distribution.
+
+OPTION 2 — Google Gemini (aistudio.google.com):
+  1. Go to aistudio.google.com
+  2. Select Gemini 2.5 Pro
+  3. Upload both WPR PDFs
+  4. Paste the prompt
+  5. Send.
+
+OPTION 3 — ChatGPT:
+  1. Go to chat.openai.com
+  2. Start a new chat with GPT-4o or GPT-4.5
+  3. Attach both PDFs
+  4. Paste the prompt
+  5. Send.
+
+================================================================================
+TIPS FOR BEST RESULTS
+================================================================================
+
+- Always provide BOTH WPRs in the SAME message. Do not split across messages.
+- Name the PDFs clearly:
+    "WPR_Week_12_Previous_March_15-21.pdf"
+    "WPR_Week_13_Current_March_22-28.pdf"
+- If the AI response gets cut off, type: "continue from where you left off"
+- To get ONLY the critical issues (short version), add at the end of the prompt:
+    "Only include sections 1, 3, 10, 12, 13. Skip the rest."
+- To get a PowerPoint-ready summary, add:
+    "Also produce a 5-slide executive deck outline with 3 bullets per slide."
+- To get an email draft, add:
+    "Also draft a 150-word email to the Project Manager summarizing
+     the top 3 concerns and requesting a response within 24 hours."
+
+================================================================================

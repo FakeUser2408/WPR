@@ -1,0 +1,22 @@
+project_id = "xeptgglalipghvyoxgon"
+
+[functions.analyze-wpr]
+verify_jwt = false
+
+[functions.compare-site-photos]
+verify_jwt = false
+
+[functions.get-analyses]
+verify_jwt = false
+
+[functions.get-analysis]
+verify_jwt = false
+
+[functions.save-analysis]
+verify_jwt = false
+
+[functions.scan-and-analyze]
+verify_jwt = false
+
+[functions.upload-wpr]
+verify_jwt = false

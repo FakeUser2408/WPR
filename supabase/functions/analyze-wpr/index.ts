@@ -1,4 +1,5 @@
 /// <reference lib="deno.window" />
+import "https://deno.land/x/xhr@0.1.0/mod.ts";
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.3";
 
@@ -9,12 +10,13 @@ const corsHeaders = {
 
 function cleanText(raw: string): string {
   return raw
-    .replace(/!\[.*?\]\(https?:\/\/[^\)]+\)/g, "")  // remove all markdown images
-    .replace(/<br\s*\/?>/gi, " ")                     // replace <br> tags with space
-    .replace(/[ \t]{3,}/g, "  ")                      // collapse excessive whitespace
-    .replace(/\n{4,}/g, "\n\n\n")                     // collapse excessive blank lines
+    .replace(/!\[.*?\]\(https?:\/\/[^\)]+\)/g, "")
+    .replace(/<br\s*\/?>/gi, " ")
+    .replace(/https?:\/\/\S{20,}/g, "")
+    .replace(/[ \t]{3,}/g, "  ")
+    .replace(/\n{4,}/g, "\n\n\n")
     .trim()
-    .substring(0, 60000);                             // hard cap to prevent OOM
+    .substring(0, 40000);
 }
 
 async function fetchWprText(supabase: ReturnType<typeof createClient>, safeName: string, weekNum: number): Promise<string | null> {
@@ -24,55 +26,6 @@ async function fetchWprText(supabase: ReturnType<typeof createClient>, safeName:
   if (txtData) return cleanText(await txtData.text());
   return null;
 }
-
-const SCHEMA = `{
-  "project_name": "string",
-  "wpr1_date": "string",
-  "wpr2_date": "string",
-  "overall_score": "number 0-100",
-  "overall_status": "healthy | at_risk | critical",
-  "summary": "2-3 sentence executive summary comparing both WPRs",
-  "project_details": {
-    "client_name": "string",
-    "report_dates_different": "boolean",
-    "wpr1_report_date": "string",
-    "wpr2_report_date": "string",
-    "created_by": "string",
-    "execution_team": "string",
-    "design_team": "string",
-    "sales_team": "string",
-    "escalation_point": "string",
-    "project_end_date_wpr1": "string",
-    "project_end_date_wpr2": "string",
-    "end_dates_match": "boolean",
-    "end_date_discrepancy_reason": "string or null"
-  },
-  "sections": [
-    { "name": "string", "status": "healthy | at_risk | critical | unchanged", "score": "number 0-100", "summary": "string", "findings": ["string"], "recommendations": ["string"] }
-  ],
-  "warnings": [
-    { "severity": "critical | high | medium | low", "category": "string", "message": "string", "impact": "string", "action_required": "string" }
-  ],
-  "risk_register": [
-    { "point": "string", "details": "string", "action_by": "string", "status_wpr1": "string", "status_wpr2": "string", "status_change": "resolved | unchanged | escalated | new", "weeks_open": "number" }
-  ],
-  "progress_comparison": [
-    { "area": "string", "pct_wpr1": "number", "pct_wpr2": "number", "delta": "number", "direction": "up | down | unchanged", "concern": "boolean", "reason": "string" }
-  ],
-  "selection_changes": [
-    { "category": "string", "item": "string", "status_wpr1": "string", "status_wpr2": "string", "changed": "boolean", "regression": "boolean", "remarks_wpr1": "string", "remarks_wpr2": "string" }
-  ],
-  "design_revisions": {
-    "wpr1_revisions": [{ "revision": "string", "date": "string", "remarks": "string" }],
-    "wpr2_revisions": [{ "revision": "string", "date": "string", "remarks": "string" }],
-    "new_revisions": "boolean",
-    "comparison_notes": "string"
-  },
-  "timeline_comparison": [
-    { "item": "string", "start_date": "string", "end_date_wpr1": "string", "end_date_wpr2": "string", "date_changed": "boolean", "critical_remarks": "string" }
-  ],
-  "image_areas": ["area names from the '3Ds Vs Actual Site Photos' section only"]
-}`;
 
 serve(async (req: Request) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
@@ -100,77 +53,214 @@ serve(async (req: Request) => {
       wpr1_text = cleanText(body.wpr1_text);
       wpr2_text = cleanText(body.wpr2_text);
     } else {
-      return new Response(JSON.stringify({ error: "Provide {project_name, week1, week2} or {wpr1_text, wpr2_text}" }), {
+      return new Response(JSON.stringify({ error: "Both WPR texts are required" }), {
         status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
 
-    if (wpr1_text.length < 50 || wpr2_text.length < 50) {
-      return new Response(JSON.stringify({ error: "WPR text too short" }), {
-        status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
-    }
-
+    const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
     const GEMINI_API_KEY = Deno.env.get("GEMINI_API_KEY");
-    if (!GEMINI_API_KEY) throw new Error("GEMINI_API_KEY not configured");
 
-    const prompt = `You are a WPR (Weekly Progress Report) analyst for construction/interior projects. Compare two WPRs and return ONLY valid JSON matching this exact structure (no markdown, no extra text):
+    const systemPrompt = `You are a WPR (Weekly Progress Report) analysis expert for construction/interior projects.
 
-${SCHEMA}
+You will receive the extracted text content of two consecutive WPRs (Weekly Progress Reports). The text is extracted from PDFs and contains structured data — read it carefully:
+- Progress percentages per area (e.g. "Area: 75%", completion tables)
+- Selection schedule status (items with Done/Pending/In Progress status)
+- Critical open points / risk register (risks with details and action owners)
+- Project timeline with start/end dates per activity
+- Project details (client name, report date, team members)
+- 3Ds Vs Actual Site Photos section listing area names
 
-Rules:
-- report_dates_different=true if both WPRs have the same report date
-- concern=true for any progress area where % went down; explain in "reason"
-- regression=true for any selection item that was Done in WPR1 but not Done in WPR2
-- weeks_open = consecutive weeks a risk has appeared
-- image_areas: ONLY area names from the "3Ds Vs Actual Site Photos" section
-- overall_score reflects true project health (delays, regressions, open risks lower it)
+Analyze both WPRs by reading all tables and return a JSON object with this EXACT structure:
 
----WPR 1 (Previous Week)---
-${wpr1_text}
+{
+  "project_name": "string - project name from the report",
+  "wpr1_date": "string - date range of WPR 1",
+  "wpr2_date": "string - date range of WPR 2",
+  "overall_score": number 0-100,
+  "overall_status": "healthy" | "at_risk" | "critical",
+  "summary": "string - 2-3 sentence executive summary",
+  "sections": [
+    {
+      "name": "string - section name",
+      "status": "healthy" | "at_risk" | "critical" | "unchanged",
+      "score": number 0-100,
+      "summary": "string - what happened in this section",
+      "findings": ["string array of key findings"],
+      "recommendations": ["string array of recommendations"]
+    }
+  ],
+  "warnings": [
+    {
+      "severity": "critical" | "high" | "medium" | "low",
+      "category": "string",
+      "message": "string - clear description",
+      "impact": "string - what could go wrong",
+      "action_required": "string - what needs to happen"
+    }
+  ],
+  "risk_register": [
+    {
+      "point": "string - risk title",
+      "details": "string - full details comparing both WPRs",
+      "action_by": "string",
+      "status_wpr1": "string - status/text in WPR1",
+      "status_wpr2": "string - status/text in WPR2",
+      "status_change": "resolved" | "unchanged" | "escalated" | "new",
+      "weeks_open": number
+    }
+  ],
+  "progress_comparison": [
+    {
+      "area": "string",
+      "pct_wpr1": number,
+      "pct_wpr2": number,
+      "delta": number,
+      "direction": "up" | "down" | "unchanged",
+      "concern": boolean,
+      "reason": "string - explain if percentage went down or stayed at 0"
+    }
+  ],
+  "selection_changes": [
+    {
+      "category": "string - e.g. Modular Furniture, Flooring",
+      "item": "string",
+      "status_wpr1": "string",
+      "status_wpr2": "string",
+      "changed": boolean,
+      "regression": boolean,
+      "remarks_wpr1": "string",
+      "remarks_wpr2": "string"
+    }
+  ],
+  "design_revisions": {
+    "wpr1_revisions": [{"revision": "R1", "date": "string", "remarks": "string"}],
+    "wpr2_revisions": [{"revision": "R1", "date": "string", "remarks": "string"}],
+    "new_revisions": boolean,
+    "comparison_notes": "string"
+  },
+  "project_details": {
+    "client_name": "string",
+    "report_dates_different": boolean,
+    "wpr1_report_date": "string",
+    "wpr2_report_date": "string",
+    "created_by": "string",
+    "execution_team": "string",
+    "design_team": "string",
+    "sales_team": "string",
+    "escalation_point": "string",
+    "project_end_date_wpr1": "string",
+    "project_end_date_wpr2": "string",
+    "end_dates_match": boolean,
+    "end_date_discrepancy_reason": "string or null"
+  },
+  "timeline_comparison": [
+    {
+      "item": "string",
+      "start_date": "string",
+      "end_date_wpr1": "string",
+      "end_date_wpr2": "string",
+      "date_changed": boolean,
+      "critical_remarks": "string"
+    }
+  ],
+  "image_areas": ["string array of area names that have 3D vs Actual Site Photos in the 3Ds Vs Actual Site Photos section ONLY"]
+}
 
----WPR 2 (Current Week)---
-${wpr2_text}`;
+CRITICAL ANALYSIS RULES:
+1. Report dates MUST be different between WPRs - flag if same
+2. Project end date in Project Details MUST match timeline end date - verify and flag discrepancy
+3. Risk Register: Compare ALL risk items between both WPRs. If a risk appears in both, it's "unchanged". If text changed/expanded it may be "escalated". Count consecutive weeks it's been open.
+4. Progress: If any percentage went DOWN, mark concern=true and explain why
+5. Selection: Flag any item that regressed (was Done, now not Done)
+6. Design Revisions: Compare revision lists - flag if new revisions appeared
+7. 3D vs Site Photos: ONLY list area names from the "3Ds Vs Actual Site Photos" section, not from other sections
+8. Warnings: Generate accountability warnings - if something is delayed, what downstream activities are affected
+9. Be thorough - check every section, every number, every status change
+10. For sections analysis, provide a summary for EACH major section of the WPR`;
 
-    const response = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${GEMINI_API_KEY}`,
-      {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          contents: [{ role: "user", parts: [{ text: prompt }] }],
-          generationConfig: {
-            responseMimeType: "application/json",
-            temperature: 0.1,
-            maxOutputTokens: 16000,
+    const userPrompt = `---WPR 1 (Previous Week)---\n${wpr1_text}\n\n---WPR 2 (Current Week)---\n${wpr2_text}\n\nRead all data carefully. Return ONLY the JSON object, no markdown fences.`;
+
+    let response: Response | null = null;
+    const maxRetries = 3;
+
+    for (let attempt = 0; attempt <= maxRetries; attempt++) {
+      if (LOVABLE_API_KEY) {
+        response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${LOVABLE_API_KEY}`,
+            "Content-Type": "application/json",
           },
-        }),
+          body: JSON.stringify({
+            model: "google/gemini-2.5-flash",
+            messages: [
+              { role: "system", content: systemPrompt },
+              { role: "user", content: userPrompt },
+            ],
+            response_format: { type: "json_object" },
+          }),
+        });
+      } else if (GEMINI_API_KEY) {
+        response = await fetch(
+          `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${GEMINI_API_KEY}`,
+          {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              contents: [{ role: "user", parts: [{ text: `${systemPrompt}\n\n${userPrompt}` }] }],
+              generationConfig: { temperature: 0.1, maxOutputTokens: 16000, responseMimeType: "application/json" },
+            }),
+          }
+        );
+      } else {
+        throw new Error("No AI API key configured. Set LOVABLE_API_KEY or GEMINI_API_KEY.");
       }
-    );
 
-    if (!response.ok) {
-      const errText = await response.text();
-      console.error("Gemini error:", response.status, errText);
-      return new Response(JSON.stringify({ error: `Gemini API error: ${response.status}` }), {
-        status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
+      if (response.ok) break;
+
+      if (response.status === 429) {
+        await response.text();
+        return new Response(JSON.stringify({ error: "Gemini rate limit reached. Please wait 30 seconds and try again.", retryable: true }), {
+          status: 429, headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+      const isRetryable = response.status === 503;
+      if (!isRetryable || attempt === maxRetries) {
+        const errText = await response.text();
+        console.error(`AI API error (attempt ${attempt + 1}):`, response.status, errText);
+        return new Response(JSON.stringify({ error: `AI API error: ${response.status}` }), {
+          status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+
+      await response.text();
+      const delay = Math.min(1000 * Math.pow(2, attempt), 8000) + Math.random() * 1000;
+      console.log(`AI returned ${response.status}, retrying in ${Math.round(delay)}ms (attempt ${attempt + 1}/${maxRetries})`);
+      await new Promise(r => setTimeout(r, delay));
     }
 
-    const data = await response.json();
-    const text: string | undefined = data.candidates?.[0]?.content?.parts?.[0]?.text;
+    const responseData = await response!.json();
+
+    let text: string | undefined;
+    if (responseData.choices?.[0]?.message?.content) {
+      text = responseData.choices[0].message.content;
+    } else if (responseData.candidates?.[0]?.content?.parts?.[0]?.text) {
+      text = responseData.candidates[0].content.parts[0].text;
+    }
 
     if (!text) {
-      console.error("No text in Gemini response:", JSON.stringify(data).substring(0, 500));
-      return new Response(JSON.stringify({ error: "No response from Gemini" }), {
+      console.error("No text in AI response:", JSON.stringify(responseData).substring(0, 500));
+      return new Response(JSON.stringify({ error: "No response from AI" }), {
         status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
 
     let analysis;
     try {
-      analysis = JSON.parse(text);
+      const cleaned = text.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
+      analysis = JSON.parse(cleaned);
     } catch {
-      // Fallback: extract JSON between first { and last }
       const s = text.indexOf("{"), e = text.lastIndexOf("}");
       if (s === -1 || e === -1) throw new Error("No JSON in response");
       analysis = JSON.parse(text.substring(s, e + 1));

@@ -84,20 +84,18 @@ export default function ProjectDetailPage() {
 
   const validateFile = (f: File | null, fieldKey: string): boolean => {
     if (!f) {
-      setErrors(prev => ({ ...prev, [fieldKey]: "Please select a file" }));
+      setErrors(prev => ({ ...prev, [fieldKey]: "Please select a PDF file" }));
       return false;
     }
-    const isMarkdown = f.name.toLowerCase().endsWith('.md');
-    const isPDF = f.name.toLowerCase().endsWith('.pdf');
-    if (!isMarkdown && !isPDF) {
-      setErrors(prev => ({ ...prev, [fieldKey]: "Only PDF or Markdown (.md) files are accepted" }));
+    if (!f.name.toLowerCase().endsWith('.pdf')) {
+      setErrors(prev => ({ ...prev, [fieldKey]: "Only PDF files are accepted" }));
       return false;
     }
     if (f.size > MAX_FILE_SIZE_MB * 1024 * 1024) {
       setErrors(prev => ({ ...prev, [fieldKey]: `File exceeds ${MAX_FILE_SIZE_MB}MB limit` }));
       return false;
     }
-    if (f.size < 100) {
+    if (f.size < 1000) {
       setErrors(prev => ({ ...prev, [fieldKey]: "File appears to be empty or corrupted" }));
       return false;
     }
@@ -122,23 +120,6 @@ export default function ProjectDetailPage() {
   const [uploadProgress, setUploadProgress] = useState("");
 
   const uploadSingleWPR = async (wprFile: File, week: string) => {
-    const isMarkdown = wprFile.name.toLowerCase().endsWith('.md');
-
-    if (isMarkdown) {
-      // Markdown: read content directly — no extraction needed, tables preserved perfectly
-      setUploadProgress("Reading markdown...");
-      const text = await wprFile.text();
-      setUploadProgress("Uploading markdown...");
-      const mdPath = `${safeName}/week_${week}/extracted.md`;
-      await supabase.storage.from("wpr-uploads").upload(
-        mdPath, new Blob([text], { type: "text/markdown" }),
-        { contentType: "text/markdown", upsert: true }
-      );
-      setUploadProgress("");
-      return;
-    }
-
-    // PDF flow
     // Step 1: Extract text
     setUploadProgress("Extracting text...");
     let text = "";
@@ -267,12 +248,10 @@ export default function ProjectDetailPage() {
         return;
       }
 
-      // Step 2: Download WPR content — prefer .md (better structure) over .txt
+      // Step 2: Download extracted text
       setAnalyzeStep("extracting");
 
       const downloadWprText = async (weekName: string): Promise<string | null> => {
-        const mdRes = await supabase.storage.from("wpr-uploads").download(`${safeName}/${weekName}/extracted.md`);
-        if (mdRes.data) return mdRes.data.text();
         const txtRes = await supabase.storage.from("wpr-uploads").download(`${safeName}/${weekName}/extracted.txt`);
         if (txtRes.data) return txtRes.data.text();
         return null;

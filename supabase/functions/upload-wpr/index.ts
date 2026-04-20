@@ -28,18 +28,14 @@ serve(async (req: Request) => {
     );
 
     const safeName = projectName.replace(/[^a-zA-Z0-9_-]/g, "_").toLowerCase();
-    const isMarkdown = file.name.endsWith(".md");
-
-    // Markdown files saved as extracted.md — analyzer prefers these over extracted.txt
-    // because markdown preserves full table structure from ClickUp/Notion exports
-    const saveAsName = isMarkdown ? "extracted.md" : file.name.replace(/[^a-zA-Z0-9._-]/g, "_");
+    const saveAsName = file.name.replace(/[^a-zA-Z0-9._-]/g, "_");
     const filePath = `${safeName}/week_${weekNumber}/${saveAsName}`;
 
     const arrayBuffer = await file.arrayBuffer();
     const { error: uploadError } = await supabase.storage
       .from("wpr-uploads")
       .upload(filePath, arrayBuffer, {
-        contentType: isMarkdown ? "text/markdown" : (file.type || "application/pdf"),
+        contentType: file.type || "application/pdf",
         upsert: true,
       });
 
@@ -54,7 +50,7 @@ serve(async (req: Request) => {
       url: publicUrl,
       project_name: projectName,
       week_number: weekNumber,
-      type: isMarkdown ? "markdown" : "file",
+      type: "file",
     }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });

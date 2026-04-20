@@ -27,31 +27,22 @@ const Index = () => {
   ) => {
     const file = e.target.files?.[0];
     if (!file) return;
-    const isMarkdown = file.name.endsWith(".md");
     const isPDF = file.type === "application/pdf" || file.name.toLowerCase().endsWith(".pdf");
-    if (!isMarkdown && !isPDF) {
-      toast({ title: "Invalid file", description: "Please upload a PDF or Markdown (.md) file", variant: "destructive" });
+    if (!isPDF) {
+      toast({ title: "Invalid file", description: "Please upload a PDF file", variant: "destructive" });
       return;
     }
     try {
       setter({ file, text: "", name: file.name, images: [] });
-
-      if (isMarkdown) {
-        // Markdown preserves table structure perfectly — read directly, no extraction needed
-        const text = await file.text();
-        setter({ file, text, name: file.name, images: [] });
-        toast({ title: "Markdown loaded", description: `${file.name}: ready for analysis` });
-      } else {
-        const [text, images] = await Promise.all([
-          extractTextFromPDF(file),
-          extractSitePhotoPages(file, { maxPages: 8, scale: 1.5, quality: 0.7 }).catch(() => [] as Blob[]),
-        ]);
-        setter({ file, text, name: file.name, images });
-        toast({
-          title: "PDF processed",
-          description: `${file.name}: text extracted, ${images.length} site photo pages found`,
-        });
-      }
+      const [text, images] = await Promise.all([
+        extractTextFromPDF(file),
+        extractSitePhotoPages(file, { maxPages: 8, scale: 1.5, quality: 0.7 }).catch(() => [] as Blob[]),
+      ]);
+      setter({ file, text, name: file.name, images });
+      toast({
+        title: "PDF processed",
+        description: `${file.name}: text extracted, ${images.length} site photo pages found`,
+      });
     } catch (err) {
       toast({ title: "Extraction failed", description: String(err), variant: "destructive" });
       setter({ file: null, text: "", name: "", images: [] });
@@ -163,7 +154,7 @@ function UploadCard({ label, sublabel, state, onChange, index }: {
       transition={{ delay: index * 0.1 }}
       className={`glass-card-elevated rounded-2xl p-6 cursor-pointer transition-all duration-200 hover:border-primary/30 group relative overflow-hidden ${state.text ? "border-success/30 bg-success/5" : ""}`}
     >
-      <input type="file" accept=".pdf,.md" onChange={onChange} className="sr-only" />
+      <input type="file" accept=".pdf" onChange={onChange} className="sr-only" />
       <div className="flex items-start gap-4">
         <div className={`w-12 h-12 rounded-xl flex items-center justify-center flex-shrink-0 transition-colors ${state.text ? "bg-success/10" : "bg-muted group-hover:bg-primary/10"}`}>
           {state.text ? <FileText className="w-6 h-6 text-success" /> : <Upload className="w-6 h-6 text-muted-foreground group-hover:text-primary transition-colors" />}
@@ -175,7 +166,7 @@ function UploadCard({ label, sublabel, state, onChange, index }: {
           {state.text && state.images.length > 0 && (
             <p className="text-xs text-muted-foreground mt-1">{state.images.length} site photo pages extracted</p>
           )}
-          {!state.file && <p className="text-xs text-muted-foreground mt-2">Click to select PDF or Markdown (.md)</p>}
+          {!state.file && <p className="text-xs text-muted-foreground mt-2">Click to select PDF</p>}
           {state.file && !state.text && (
             <p className="text-xs text-muted-foreground mt-2 flex items-center gap-1.5">
               <span className="w-1.5 h-1.5 rounded-full bg-primary animate-pulse-dot" />

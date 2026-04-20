@@ -1,8 +1,8 @@
 import { useEffect, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
-import { ArrowLeft, AlertTriangle, CheckCircle2, XCircle, Info, TrendingUp, TrendingDown, Minus, ChevronDown, ChevronUp, Shield, Calendar, Users, FileText, Target, Clock, BarChart3, Eye, Camera, ImageOff, Zap, ArrowRight, CircleDot, Sparkles } from "lucide-react";
-import type { ProjectDetails, RevisionComparison, TimelineItem, ImageComparison, ImageComparisonArea, AnalysisSection } from "@/lib/analysis";
+import { ArrowLeft, AlertTriangle, CheckCircle2, XCircle, Info, TrendingUp, TrendingDown, Minus, ChevronDown, ChevronUp, Shield, Calendar, Users, FileText, Target, Clock, BarChart3, Eye, Zap, ArrowRight, CircleDot, Sparkles } from "lucide-react";
+import type { ProjectDetails, RevisionComparison, TimelineItem, AnalysisSection } from "@/lib/analysis";
 import { Button } from "@/components/ui/button";
 import { getAnalysisById, type WPRAnalysis, type Warning, type ProgressItem, type RiskItem, type SelectionChange } from "@/lib/analysis";
 import { useToast } from "@/hooks/use-toast";
@@ -219,15 +219,8 @@ export default function AnalysisReport() {
           <TimelineSection items={analysis.timeline_comparison} />
         </ReportSection>
 
-        {/* Image Comparison */}
-        {analysis.image_comparison && analysis.image_comparison.status !== 'insufficient_data' && (
-          <ReportSection title="Site Photo Comparison" icon={<Camera className="w-4 h-4" />} delay={0.5} sectionAnalysis={findSection("Photo") || findSection("3D")}>
-            <ImageComparisonSection comparison={analysis.image_comparison} />
-          </ReportSection>
-        )}
-
-        {/* 3D vs Site Image Areas (fallback) */}
-        {analysis.image_areas && analysis.image_areas.length > 0 && !analysis.image_comparison && (
+        {/* 3D vs Site Image Areas */}
+        {analysis.image_areas && analysis.image_areas.length > 0 && (
           <ReportSection title="3D vs Actual Site Photos" icon={<Eye className="w-4 h-4" />} delay={0.5} sectionAnalysis={findSection("Photo") || findSection("3D")}>
             <ImageAreasSection areas={analysis.image_areas} />
           </ReportSection>
@@ -660,111 +653,3 @@ function ImageAreasSection({ areas }: { areas: string[] }) {
   );
 }
 
-function ImageComparisonSection({ comparison }: { comparison: ImageComparison }) {
-  const severityStyles: Record<string, { bg: string; border: string; icon: React.ReactNode; text: string }> = {
-    critical: { bg: "bg-critical/5", border: "border-critical/20", icon: <XCircle className="w-4 h-4 text-critical" />, text: "text-critical" },
-    warning: { bg: "bg-warning/5", border: "border-warning/20", icon: <AlertTriangle className="w-4 h-4 text-warning" />, text: "text-warning" },
-    ok: { bg: "bg-success/5", border: "border-success/20", icon: <CheckCircle2 className="w-4 h-4 text-success" />, text: "text-success" },
-  };
-
-  return (
-    <div className="space-y-4">
-      {comparison.recycled_photos_detected && (
-        <div className="bg-critical/10 border border-critical/30 rounded-2xl p-4 flex items-start gap-3">
-          <ImageOff className="w-6 h-6 text-critical flex-shrink-0 mt-0.5" />
-          <div>
-            <p className="text-sm font-bold text-critical flex items-center gap-1.5">
-              <AlertTriangle className="w-4 h-4" /> Recycled Photos Detected
-            </p>
-            <p className="text-xs text-critical/80 mt-1">
-              Some actual site photos appear identical between weeks. This suggests no new progress photos were captured, 
-              which is unacceptable for client reporting and risks business reputation.
-            </p>
-            {comparison.confidence && (
-              <span className="text-[10px] font-bold uppercase px-2 py-0.5 rounded-full bg-critical/20 text-critical mt-2 inline-block">
-                Confidence: {comparison.confidence}
-              </span>
-            )}
-          </div>
-        </div>
-      )}
-
-      {!comparison.recycled_photos_detected && (
-        <div className="bg-success/10 border border-success/30 rounded-2xl p-4 flex items-start gap-3">
-          <CheckCircle2 className="w-6 h-6 text-success flex-shrink-0 mt-0.5" />
-          <div>
-            <p className="text-sm font-bold text-success flex items-center gap-1.5">
-              <CheckCircle2 className="w-4 h-4" /> Fresh Photos Confirmed
-            </p>
-            <p className="text-xs text-success/80 mt-1">
-              Actual site photos show different content between weeks, indicating genuine progress documentation.
-            </p>
-          </div>
-        </div>
-      )}
-
-      {comparison.areas_compared && comparison.areas_compared.length > 0 && (
-        <div className="glass-card-elevated rounded-2xl overflow-hidden">
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="border-b border-border bg-muted/50">
-                <th className="text-left p-3 font-medium text-muted-foreground">Area</th>
-                <th className="text-center p-3 font-medium text-muted-foreground">Photos Status</th>
-                <th className="text-center p-3 font-medium text-muted-foreground">Progress Visible</th>
-                <th className="text-left p-3 font-medium text-muted-foreground">Remarks</th>
-              </tr>
-            </thead>
-            <tbody>
-              {comparison.areas_compared.map((area, i) => {
-                return (
-                  <tr key={i} className={`border-b border-border/50 ${area.photos_identical ? 'bg-critical/5' : ''}`}>
-                    <td className="p-3 font-medium">{area.area_name}</td>
-                    <td className="p-3 text-center">
-                      <span className={`inline-flex items-center gap-1.5 text-xs font-bold px-2.5 py-1 rounded-full border ${
-                        area.photos_identical 
-                          ? 'bg-critical/10 text-critical border-critical/20' 
-                          : 'bg-success/10 text-success border-success/20'
-                      }`}>
-                        {area.photos_identical ? <ImageOff className="w-3 h-3" /> : <CheckCircle2 className="w-3 h-3" />}
-                        {area.photos_identical ? 'Recycled' : 'Updated'}
-                      </span>
-                    </td>
-                    <td className="p-3 text-center">
-                      {area.progress_visible ? (
-                        <span className="text-success text-xs font-medium flex items-center justify-center gap-1"><CheckCircle2 className="w-3 h-3" /> Yes</span>
-                      ) : (
-                        <span className="text-critical text-xs font-medium flex items-center justify-center gap-1"><XCircle className="w-3 h-3" /> No</span>
-                      )}
-                    </td>
-                    <td className="p-3 text-xs text-muted-foreground">{area.remarks}</td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
-      )}
-
-      {comparison.findings && comparison.findings.length > 0 && (
-        <div className="glass-card-elevated rounded-2xl p-5">
-          <h4 className="text-xs font-bold uppercase text-muted-foreground mb-3 tracking-wider">Key Findings</h4>
-          <ul className="space-y-2">
-            {comparison.findings.map((f, i) => (
-              <li key={i} className="text-sm flex items-start gap-2">
-                <Camera className="w-3.5 h-3.5 text-primary mt-0.5 flex-shrink-0" />
-                {f}
-              </li>
-            ))}
-          </ul>
-        </div>
-      )}
-
-      {comparison.recommendation && (
-        <div className="glass-card-elevated rounded-2xl p-4 border-l-4 border-primary">
-          <p className="text-xs font-bold uppercase text-muted-foreground mb-1">Recommendation</p>
-          <p className="text-sm">{comparison.recommendation}</p>
-        </div>
-      )}
-    </div>
-  );
-}

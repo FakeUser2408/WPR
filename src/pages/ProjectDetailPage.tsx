@@ -4,8 +4,8 @@ import { motion } from "framer-motion";
 import { ArrowLeft, Upload, Play, FileText, Clock, AlertTriangle, CheckCircle2, XCircle, ArrowRight, Trash2, Pencil, Info } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { getAnalysisHistory, analyzeWPRs, saveAnalysis, compareSitePhotos, type WPRAnalysis } from "@/lib/analysis";
-import { extractTextFromPDF, extractSitePhotoPages } from "@/lib/pdf-extract";
+import { getAnalysisHistory, analyzeWPRs, saveAnalysis, type WPRAnalysis } from "@/lib/analysis";
+import { extractTextFromPDF } from "@/lib/pdf-extract";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import DashboardLayout from "@/components/DashboardLayout";
@@ -135,30 +135,6 @@ export default function ProjectDetailPage() {
       await supabase.storage.from("wpr-uploads").upload(textPath, textBlob, { contentType: "text/plain", upsert: true });
     }
 
-    // Step 3: Extract site photo images ONLY from "3Ds Vs Actual Site Photos" section
-    setUploadProgress("Extracting site photo pages...");
-    let imageBlobs: Blob[] = [];
-    try {
-      imageBlobs = await extractSitePhotoPages(wprFile, { maxPages: 12, scale: 1.5, quality: 0.7 });
-    } catch (imgErr) { console.warn("Site photo extraction failed:", imgErr); }
-
-    // Step 4: Upload images in parallel batches
-    if (imageBlobs.length > 0) {
-      setUploadProgress(`Uploading ${imageBlobs.length} site photo pages...`);
-      const batchSize = 3;
-      for (let i = 0; i < imageBlobs.length; i += batchSize) {
-        const batch = imageBlobs.slice(i, i + batchSize);
-        await Promise.all(batch.map((blob, bIdx) => {
-          const imgPath = `${safeName}/week_${week}/page_${i + bIdx + 1}.jpg`;
-          return supabase.storage.from("wpr-uploads").upload(imgPath, blob, { contentType: "image/jpeg", upsert: true });
-        }));
-        setUploadProgress(`Uploaded ${Math.min(i + batchSize, imageBlobs.length)}/${imageBlobs.length} images...`);
-      }
-    } else {
-      setUploadProgress("No site photo pages found in PDF");
-      await new Promise(r => setTimeout(r, 1500));
-    }
-
     setUploadProgress("");
   };
 
@@ -276,41 +252,7 @@ export default function ProjectDetailPage() {
       setAnalyzeStep("analyzing");
       const analysis = await analyzeWPRs(prevText, currText);
 
-      // Step 4: Run image comparison
-      setAnalyzeStep("photos");
-
-      // Download images for both weeks
-      const downloadWeekImages = async (weekFolder: string): Promise<Blob[]> => {
-        const { data: files } = await supabase.storage.from("wpr-uploads").list(`${safeName}/${weekFolder}`, { limit: 50 });
-        if (!files) return [];
-
-        const imageFiles = files
-          .filter(f => f.name.endsWith(".jpg") && f.name.startsWith("page_"))
-          .sort((a, b) => a.name.localeCompare(b.name));
-
-        const blobs: Blob[] = [];
-        for (const f of imageFiles) {
-          const { data } = await supabase.storage.from("wpr-uploads").download(`${safeName}/${weekFolder}/${f.name}`);
-          if (data) blobs.push(data);
-        }
-        return blobs;
-      };
-
-      const [prevImages, currImages] = await Promise.all([
-        downloadWeekImages(prevWeek.name),
-        downloadWeekImages(currWeek.name),
-      ]);
-
-      let imageComparison = null;
-      if (prevImages.length > 0 && currImages.length > 0) {
-        imageComparison = await compareSitePhotos(prevImages, currImages, prevWeekNum, currWeekNum, projectName);
-      }
-
-      if (imageComparison) {
-        analysis.image_comparison = imageComparison;
-      }
-
-      // Step 5: Save to database
+      // Step 4: Save to database
       setAnalyzeStep("saving");
       const id = await saveAnalysis(analysis, currWeekNum);
 

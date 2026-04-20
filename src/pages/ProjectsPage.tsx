@@ -4,7 +4,7 @@ import { motion } from "framer-motion";
 import { FolderOpen, Plus, ArrowRight, AlertTriangle, CheckCircle2, XCircle, Play, Trash2, Pencil } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { getAnalysisHistory, analyzeWPRs, saveAnalysis, compareSitePhotos, type WPRAnalysis } from "@/lib/analysis";
+import { getAnalysisHistory, analyzeWPRs, saveAnalysis, type WPRAnalysis } from "@/lib/analysis";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import DashboardLayout from "@/components/DashboardLayout";
@@ -190,32 +190,6 @@ export default function ProjectsPage() {
 
           // Run text analysis
           const analysis = await analyzeWPRs(prevText, currText);
-
-          // Run image comparison
-          const downloadWeekImages = async (weekFolder: string): Promise<Blob[]> => {
-            const { data: files } = await supabase.storage.from("wpr-uploads").list(`${folderName}/${weekFolder}`, { limit: 50 });
-            if (!files) return [];
-            const imageFiles = files.filter(f => f.name.endsWith(".jpg") && f.name.startsWith("page_")).sort((a, b) => a.name.localeCompare(b.name));
-            const blobs: Blob[] = [];
-            for (const f of imageFiles) {
-              const { data } = await supabase.storage.from("wpr-uploads").download(`${folderName}/${weekFolder}/${f.name}`);
-              if (data) blobs.push(data);
-            }
-            return blobs;
-          };
-
-          const prevWeekNum = parseInt(prevWeek.name.replace("week_", ""));
-          const [prevImages, currImages] = await Promise.all([
-            downloadWeekImages(prevWeek.name),
-            downloadWeekImages(currWeek.name),
-          ]);
-
-          if (prevImages.length > 0 && currImages.length > 0) {
-            const imageComparison = await compareSitePhotos(prevImages, currImages, prevWeekNum, currWeekNum, displayName);
-            if (imageComparison.status !== "error") {
-              analysis.image_comparison = imageComparison;
-            }
-          }
 
           // Save with display name
           await saveAnalysis({ ...analysis, project_name: displayName }, currWeekNum);

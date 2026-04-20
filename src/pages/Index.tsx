@@ -4,18 +4,18 @@ import { motion, AnimatePresence } from "framer-motion";
 import { FileText, Upload, ArrowRight, Shield } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { extractTextFromPDF, extractSitePhotoPages } from "@/lib/pdf-extract";
-import { analyzeWPRs, saveAnalysis, compareSitePhotos } from "@/lib/analysis";
+import { extractTextFromPDF } from "@/lib/pdf-extract";
+import { analyzeWPRs, saveAnalysis } from "@/lib/analysis";
 import { useToast } from "@/hooks/use-toast";
 import DashboardLayout from "@/components/DashboardLayout";
 
-type UploadState = { file: File | null; text: string; name: string; images: Blob[] };
+type UploadState = { file: File | null; text: string; name: string };
 
 const Index = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
-  const [wpr1, setWpr1] = useState<UploadState>({ file: null, text: "", name: "", images: [] });
-  const [wpr2, setWpr2] = useState<UploadState>({ file: null, text: "", name: "", images: [] });
+  const [wpr1, setWpr1] = useState<UploadState>({ file: null, text: "", name: "" });
+  const [wpr2, setWpr2] = useState<UploadState>({ file: null, text: "", name: "" });
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [progress, setProgress] = useState(0);
   const [progressMessage, setProgressMessage] = useState("");
@@ -33,19 +33,14 @@ const Index = () => {
       return;
     }
     try {
-      setter({ file, text: "", name: file.name, images: [] });
-      const [text, images] = await Promise.all([
-        extractTextFromPDF(file),
-        extractSitePhotoPages(file, { maxPages: 8, scale: 1.5, quality: 0.7 }).catch(() => [] as Blob[]),
-      ]);
-      setter({ file, text, name: file.name, images });
-      toast({
-        title: "PDF processed",
-        description: `${file.name}: text extracted, ${images.length} site photo pages found`,
-      });
+      setter({ file, text: "", name: file.name });
+      const text = await extractTextFromPDF(file);
+      setter({ file, text, name: file.name });
+      toast({ title: "PDF processed", description: `${file.name}: text extracted` });
     } catch (err) {
       toast({ title: "Extraction failed", description: String(err), variant: "destructive" });
-      setter({ file: null, text: "", name: "", images: [] });
+      setter({ file: null, text: "", name: "" });
+
     }
   }, [toast]);
 
@@ -62,17 +57,6 @@ const Index = () => {
       setProgress(30);
       setProgressMessage("AI is comparing both WPRs...");
       const analysis = await analyzeWPRs(wpr1.text, wpr2.text);
-
-      // Run image comparison if both have images
-      if (wpr1.images.length > 0 && wpr2.images.length > 0) {
-        setProgress(60);
-        setProgressMessage("Comparing site photos for recycled images...");
-        const wk = weekNumber ? parseInt(weekNumber) : 2;
-        const imageComparison = await compareSitePhotos(wpr1.images, wpr2.images, wk - 1, wk, "Temp_Project");
-        if (imageComparison.status !== "error") {
-          analysis.image_comparison = imageComparison;
-        }
-      }
 
       setProgress(80);
       setProgressMessage("Saving analysis results...");
@@ -163,14 +147,11 @@ function UploadCard({ label, sublabel, state, onChange, index }: {
           <p className="font-semibold">{label}</p>
           <p className="text-sm text-muted-foreground mt-0.5">{sublabel}</p>
           {state.name && <p className="text-xs text-success mt-2 font-medium truncate">{state.name}</p>}
-          {state.text && state.images.length > 0 && (
-            <p className="text-xs text-muted-foreground mt-1">{state.images.length} site photo pages extracted</p>
-          )}
           {!state.file && <p className="text-xs text-muted-foreground mt-2">Click to select PDF</p>}
           {state.file && !state.text && (
             <p className="text-xs text-muted-foreground mt-2 flex items-center gap-1.5">
               <span className="w-1.5 h-1.5 rounded-full bg-primary animate-pulse-dot" />
-              Extracting text & images...
+              Extracting text...
             </p>
           )}
         </div>

@@ -4,7 +4,6 @@ import {
   FolderSearch,
   FileText,
   Sparkles,
-  Camera,
   BarChart3,
   Save,
   CheckCircle2,
@@ -15,8 +14,6 @@ const STEPS = [
   { key: "scanning", icon: FolderSearch, label: "Scanning uploaded WPRs", description: "Finding your latest weekly reports..." },
   { key: "extracting", icon: FileText, label: "Extracting report content", description: "Reading text, tables, and data from PDFs..." },
   { key: "analyzing", icon: Sparkles, label: "AI analyzing differences", description: "Comparing sections, progress, risks, and timelines..." },
-  { key: "photos", icon: Camera, label: "Comparing site photos", description: "Detecting recycled or identical images..." },
-  { key: "scoring", icon: BarChart3, label: "Generating scores & findings", description: "Calculating overall health score..." },
   { key: "saving", icon: Save, label: "Saving analysis report", description: "Storing results for your project..." },
   { key: "done", icon: CheckCircle2, label: "Analysis complete", description: "Your report is ready!" },
 ];

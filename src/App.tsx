@@ -12,6 +12,7 @@ import ProjectDetailPage from "./pages/ProjectDetailPage";
 import HowItWorksPage from "./pages/HowItWorksPage";
 import AnalysisDashboard from "./pages/AnalysisDashboard";
 import PresentationPage from "./pages/PresentationPage";
+import MarkdownAnalysisPage from "./pages/MarkdownAnalysisPage";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -29,6 +30,7 @@ const App = () => (
           <Route path="/history" element={<HistoryPage />} />
           <Route path="/projects" element={<ProjectsPage />} />
           <Route path="/project/:name" element={<ProjectDetailPage />} />
+          <Route path="/upload-md" element={<MarkdownAnalysisPage />} />
           <Route path="/how-it-works" element={<HowItWorksPage />} />
           <Route path="/analysis" element={<AnalysisDashboard />} />
           <Route path="/presentation" element={<PresentationPage />} />

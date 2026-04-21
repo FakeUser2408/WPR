@@ -225,6 +225,7 @@ export default function AnalysisReport() {
             <ImageAreasSection areas={analysis.image_areas} />
           </ReportSection>
         )}
+
       </div>
     </DashboardLayout>
   );

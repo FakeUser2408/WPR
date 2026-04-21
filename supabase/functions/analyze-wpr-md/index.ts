@@ -8,20 +8,28 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
-function cleanText(raw: string): string {
+function cleanMarkdown(raw: string): string {
+  // Strip the "3Ds Vs Actual Site Photos" section and everything after it
+  const sectionIdx = raw.search(/#+\s*3Ds?\s+Vs\.?\s+Actual\s+Site\s+Photos/i);
+  if (sectionIdx !== -1) {
+    raw = raw.substring(0, sectionIdx);
+  }
+
   return raw
-    .replace(/!\[.*?\]\(https?:\/\/[^\)]+\)/g, "")
+    .replace(/!\[.*?\]\([^\)]*\)/g, "")               // Remove all markdown images
+    .replace(/https?:\/\/\S+/g, "")                   // Remove all URLs
+    .replace(/^\|[-:\s|]+\|$/gm, "")                  // Remove table separator rows (| --- | --- |)
+    .replace(/\|(\s*)\|/g, "|")                       // Collapse empty table cells
     .replace(/<br\s*\/?>/gi, " ")
-    .replace(/https?:\/\/\S{20,}/g, "")
     .replace(/[ \t]{3,}/g, "  ")
-    .replace(/\n{4,}/g, "\n\n\n")
+    .replace(/\n{3,}/g, "\n\n")
     .trim()
-    .substring(0, 40000);
+    .substring(0, 20000);                             // Tighter limit — tables are dense, 20k is plenty
 }
 
 async function fetchWprText(supabase: ReturnType<typeof createClient>, safeName: string, weekNum: number): Promise<string | null> {
-  const { data: txtData } = await supabase.storage.from("wpr-uploads").download(`${safeName}/week_${weekNum}/extracted.txt`);
-  if (txtData) return cleanText(await txtData.text());
+  const { data } = await supabase.storage.from("wpr-uploads").download(`${safeName}/week_${weekNum}/extracted.md`);
+  if (data) return cleanMarkdown(await data.text());
   return null;
 }
 
@@ -41,15 +49,15 @@ serve(async (req: Request) => {
         fetchWprText(supabase, safeName, body.week2),
       ]);
       if (!t1 || !t2) {
-        return new Response(JSON.stringify({ error: `Missing WPR text for week_${body.week1} or week_${body.week2}` }), {
+        return new Response(JSON.stringify({ error: `Missing WPR markdown for week_${body.week1} or week_${body.week2}` }), {
           status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
         });
       }
       wpr1_text = t1;
       wpr2_text = t2;
     } else if (body.wpr1_text && body.wpr2_text) {
-      wpr1_text = cleanText(body.wpr1_text);
-      wpr2_text = cleanText(body.wpr2_text);
+      wpr1_text = cleanMarkdown(body.wpr1_text);
+      wpr2_text = cleanMarkdown(body.wpr2_text);
     } else {
       return new Response(JSON.stringify({ error: "Both WPR texts are required" }), {
         status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
@@ -59,7 +67,7 @@ serve(async (req: Request) => {
     const CLAUDE_API_KEY = Deno.env.get("CLAUDE_API_KEY");
     if (!CLAUDE_API_KEY) throw new Error("CLAUDE_API_KEY not configured");
 
-    const systemPrompt = `You are a WPR (Weekly Progress Report) analyzer for construction/interior projects. You receive extracted PDF text from two consecutive weekly reports and return a structured JSON analysis.
+    const systemPrompt = `You are a WPR (Weekly Progress Report) analyzer for construction/interior projects. You receive markdown-formatted text from two consecutive weekly reports exported from ClickUp. The markdown contains structured tables — read them carefully.
 
 Return ONLY the JSON object below — no explanation, no markdown, no extra text.
 
@@ -87,7 +95,7 @@ Rules:
 - Risk items appearing in both WPRs = "unchanged"; expanded text = "escalated"
 - Progress percentage decrease = concern:true with reason
 - Selection regression = item was Done, now not Done
-- image_areas: ONLY from the "3Ds Vs Actual Site Photos" section`;
+- image_areas: list area names mentioned under the 3Ds Vs Actual Site Photos section heading only`;
 
     const userPrompt = `---WPR 1 (Previous Week)---\n${wpr1_text}\n\n---WPR 2 (Current Week)---\n${wpr2_text}`;
 

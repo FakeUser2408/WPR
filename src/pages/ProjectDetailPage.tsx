@@ -254,7 +254,7 @@ export default function ProjectDetailPage() {
 
       // Step 4: Save to database
       setAnalyzeStep("saving");
-      const id = await saveAnalysis(analysis, currWeekNum);
+      const id = await saveAnalysis({ ...analysis, project_name: projectName }, currWeekNum);
 
       setAnalyzeStep("done");
       await new Promise(r => setTimeout(r, 800));

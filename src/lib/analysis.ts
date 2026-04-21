@@ -159,6 +159,33 @@ export async function analyzeWPRs(wpr1Text: string, wpr2Text: string): Promise<W
   }
 }
 
+/**
+ * Analyze two WPR markdown texts via the analyze-wpr-md edge function.
+ */
+export async function analyzeWPRsMD(wpr1Text: string, wpr2Text: string): Promise<WPRAnalysis> {
+  try {
+    const response = await fetch(
+      `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/analyze-wpr-md`,
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "apikey": import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY,
+          "Authorization": `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
+        },
+        body: JSON.stringify({ wpr1_text: wpr1Text, wpr2_text: wpr2Text }),
+      }
+    );
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.error || `HTTP ${response.status}`);
+    }
+    return (await response.json()) as WPRAnalysis;
+  } catch (err: any) {
+    throw new Error(err.message || "Analysis failed");
+  }
+}
+
 // ─── Database Operations (direct Supabase client) ─────────────────────────────
 
 /**

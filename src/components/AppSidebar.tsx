@@ -1,4 +1,4 @@
-import { Home, FolderOpen, FileText, Clock, BookOpen, BarChart3, Zap, Presentation } from "lucide-react";
+import { Home, FolderOpen, FileText, Clock, BookOpen, BarChart3, Zap, Presentation, FileCode } from "lucide-react";
 import { NavLink } from "@/components/NavLink";
 import { useLocation } from "react-router-dom";
 import {
@@ -19,6 +19,7 @@ const mainItems = [
   { title: "Home", url: "/", icon: Home },
   { title: "Projects", url: "/projects", icon: FolderOpen },
   { title: "Quick Analysis", url: "/upload", icon: Zap },
+  { title: "MD Analysis", url: "/upload-md", icon: FileCode },
   { title: "Dashboard", url: "/analysis", icon: BarChart3 },
   { title: "History", url: "/history", icon: Clock },
 ];

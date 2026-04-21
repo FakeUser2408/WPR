@@ -4,7 +4,7 @@ import { motion } from "framer-motion";
 import { ArrowLeft, Upload, Play, FileText, Clock, AlertTriangle, CheckCircle2, XCircle, ArrowRight, Trash2, Pencil, Info } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { getAnalysisHistory, analyzeWPRs, saveAnalysis, type WPRAnalysis } from "@/lib/analysis";
+import { getAnalysisHistory, analyzeWPRs, analyzeWPRsMD, saveAnalysis, type WPRAnalysis } from "@/lib/analysis";
 import { extractTextFromPDF } from "@/lib/pdf-extract";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
@@ -84,18 +84,19 @@ export default function ProjectDetailPage() {
 
   const validateFile = (f: File | null, fieldKey: string): boolean => {
     if (!f) {
-      setErrors(prev => ({ ...prev, [fieldKey]: "Please select a PDF file" }));
+      setErrors(prev => ({ ...prev, [fieldKey]: "Please select a PDF or Markdown file" }));
       return false;
     }
-    if (!f.name.toLowerCase().endsWith('.pdf')) {
-      setErrors(prev => ({ ...prev, [fieldKey]: "Only PDF files are accepted" }));
+    const name = f.name.toLowerCase();
+    if (!name.endsWith('.pdf') && !name.endsWith('.md')) {
+      setErrors(prev => ({ ...prev, [fieldKey]: "Only PDF or Markdown (.md) files are accepted" }));
       return false;
     }
     if (f.size > MAX_FILE_SIZE_MB * 1024 * 1024) {
       setErrors(prev => ({ ...prev, [fieldKey]: `File exceeds ${MAX_FILE_SIZE_MB}MB limit` }));
       return false;
     }
-    if (f.size < 1000) {
+    if (f.size < 100) {
       setErrors(prev => ({ ...prev, [fieldKey]: "File appears to be empty or corrupted" }));
       return false;
     }
@@ -120,19 +121,28 @@ export default function ProjectDetailPage() {
   const [uploadProgress, setUploadProgress] = useState("");
 
   const uploadSingleWPR = async (wprFile: File, week: string) => {
-    // Step 1: Extract text
-    setUploadProgress("Extracting text...");
-    let text = "";
-    try {
-      text = await extractTextFromPDF(wprFile);
-    } catch (extractErr) { console.warn("Text extraction failed:", extractErr); }
+    const isMarkdown = wprFile.name.toLowerCase().endsWith(".md");
 
-    // Step 2: Upload text
-    if (text) {
-      setUploadProgress("Uploading text...");
-      const textPath = `${safeName}/week_${week}/extracted.txt`;
-      const textBlob = new Blob([text], { type: "text/plain" });
-      await supabase.storage.from("wpr-uploads").upload(textPath, textBlob, { contentType: "text/plain", upsert: true });
+    if (isMarkdown) {
+      setUploadProgress("Reading markdown...");
+      const text = await wprFile.text();
+      setUploadProgress("Uploading markdown...");
+      const mdPath = `${safeName}/week_${week}/extracted.md`;
+      const mdBlob = new Blob([text], { type: "text/markdown" });
+      await supabase.storage.from("wpr-uploads").upload(mdPath, mdBlob, { contentType: "text/markdown", upsert: true });
+    } else {
+      setUploadProgress("Extracting text...");
+      let text = "";
+      try {
+        text = await extractTextFromPDF(wprFile);
+      } catch (extractErr) { console.warn("Text extraction failed:", extractErr); }
+
+      if (text) {
+        setUploadProgress("Uploading text...");
+        const textPath = `${safeName}/week_${week}/extracted.txt`;
+        const textBlob = new Blob([text], { type: "text/plain" });
+        await supabase.storage.from("wpr-uploads").upload(textPath, textBlob, { contentType: "text/plain", upsert: true });
+      }
     }
 
     setUploadProgress("");
@@ -227,30 +237,35 @@ export default function ProjectDetailPage() {
       // Step 2: Download extracted text
       setAnalyzeStep("extracting");
 
-      const downloadWprText = async (weekName: string): Promise<string | null> => {
+      const downloadWprText = async (weekName: string): Promise<{ text: string; isMarkdown: boolean } | null> => {
+        const mdRes = await supabase.storage.from("wpr-uploads").download(`${safeName}/${weekName}/extracted.md`);
+        if (mdRes.data) return { text: await mdRes.data.text(), isMarkdown: true };
         const txtRes = await supabase.storage.from("wpr-uploads").download(`${safeName}/${weekName}/extracted.txt`);
-        if (txtRes.data) return txtRes.data.text();
+        if (txtRes.data) return { text: await txtRes.data.text(), isMarkdown: false };
         return null;
       };
 
-      const [prevText, currText] = await Promise.all([
+      const [prev, curr] = await Promise.all([
         downloadWprText(prevWeek.name),
         downloadWprText(currWeek.name),
       ]);
 
-      if (!prevText || !currText) {
-        toast({ title: "Missing WPR data", description: "Could not find extracted.md or extracted.txt. Re-upload the WPRs.", variant: "destructive" });
+      if (!prev || !curr) {
+        toast({ title: "Missing WPR data", description: "Could not find extracted text. Re-upload the WPRs.", variant: "destructive" });
         return;
       }
 
-      if (prevText.length < 50 || currText.length < 50) {
+      if (prev.text.length < 50 || curr.text.length < 50) {
         toast({ title: "Text too short", description: "WPR content is too short for analysis.", variant: "destructive" });
         return;
       }
 
-      // Step 3: Run text analysis via Gemini
+      // Step 3: Run analysis — use markdown function if both files are markdown
       setAnalyzeStep("analyzing");
-      const analysis = await analyzeWPRs(prevText, currText);
+      const useMarkdown = prev.isMarkdown && curr.isMarkdown;
+      const analysis = useMarkdown
+        ? await analyzeWPRsMD(prev.text, curr.text)
+        : await analyzeWPRs(prev.text, curr.text);
 
       // Step 4: Save to database
       setAnalyzeStep("saving");

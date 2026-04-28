@@ -1,9 +1,12 @@
 import { useEffect, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
-import { ArrowLeft, AlertTriangle, CheckCircle2, XCircle, Info, TrendingUp, TrendingDown, Minus, ChevronDown, ChevronUp, Shield, Calendar, Users, FileText, Target, Clock, BarChart3, Eye, Zap, ArrowRight, CircleDot, Sparkles } from "lucide-react";
+import { ArrowLeft, AlertTriangle, CheckCircle2, XCircle, Info, TrendingUp, TrendingDown, Minus, ChevronDown, ChevronUp, Shield, Calendar, Users, FileText, Target, Clock, BarChart3, Eye, Zap, ArrowRight, CircleDot, Sparkles, Mail, Send, Copy } from "lucide-react";
 import type { ProjectDetails, RevisionComparison, TimelineItem, AnalysisSection } from "@/lib/analysis";
 import { Button } from "@/components/ui/button";
+import { Textarea } from "@/components/ui/textarea";
+import { Input } from "@/components/ui/input";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { getAnalysisById, type WPRAnalysis, type Warning, type ProgressItem, type RiskItem, type SelectionChange } from "@/lib/analysis";
 import { useToast } from "@/hooks/use-toast";
 import DashboardLayout from "@/components/DashboardLayout";
@@ -14,6 +17,10 @@ export default function AnalysisReport() {
   const { toast } = useToast();
   const [analysis, setAnalysis] = useState<WPRAnalysis | null>(null);
   const [loading, setLoading] = useState(true);
+  const [emailOpen, setEmailOpen] = useState(false);
+  const [emailBody, setEmailBody] = useState("");
+  const [emailTo, setEmailTo] = useState("");
+  const [emailSending, setEmailSending] = useState(false);
 
   useEffect(() => {
     if (!id) return;
@@ -49,6 +56,79 @@ export default function AnalysisReport() {
   const progressConcerns = (analysis.progress_comparison || []).filter(p => p.concern).length;
   const selectionsChanged = (analysis.selection_changes || []).filter(s => s.changed || s.regression).length;
 
+  const generateEmail = () => {
+    if (!analysis) return;
+    const statusLabel = analysis.overall_status === "healthy" ? "Healthy" : analysis.overall_status === "at_risk" ? "At Risk" : "Critical";
+    const w = analysis.warnings || [];
+    const bySeverity = (sev: string) => w.filter(x => x.severity === sev);
+    const renderFindings = (items: Warning[], idx_offset: number) =>
+      items.map((item, i) =>
+        `${i + idx_offset + 1}. ${item.category.toUpperCase()}\n${item.message}\n• Action Required: ${item.action_required}`
+      ).join("\n\n");
+
+    const critical = bySeverity("critical");
+    const high = bySeverity("high");
+    const medium = bySeverity("medium");
+    const low = bySeverity("low");
+
+    let body = `Subject: WPR Audit – Week ${analysis.week_number || "?"} | ${analysis.project_name} | Health Score: ${analysis.overall_score}/100 (${statusLabel})\n\n`;
+    body += `Dear Team,\n\n`;
+    body += `Please find below the Week ${analysis.week_number || "?"} Weekly Progress Report (WPR) Audit summary for Project: ${analysis.project_name}.`;
+    if (analysis.project_details?.execution_team) body += ` This report pertains to Execution Team: ${analysis.project_details.execution_team}.`;
+    body += `\n\n📊 Project Health Score: ${analysis.overall_score}/100 — ${statusLabel.toUpperCase()}\n`;
+    body += `Comparing: ${analysis.wpr1_date} vs ${analysis.wpr2_date}\n`;
+
+    if (critical.length > 0) {
+      body += `\n─────────────────────────────────────\n🔴 CRITICAL FINDINGS (${critical.length})\n─────────────────────────────────────\n\n`;
+      body += renderFindings(critical, 0);
+    }
+    if (high.length > 0) {
+      body += `\n\n─────────────────────────────────────\n🟠 HIGH PRIORITY FINDINGS (${high.length})\n─────────────────────────────────────\n\n`;
+      body += renderFindings(high, 0);
+    }
+    if (medium.length > 0) {
+      body += `\n\n─────────────────────────────────────\n🟡 MEDIUM PRIORITY FINDINGS (${medium.length})\n─────────────────────────────────────\n\n`;
+      body += renderFindings(medium, 0);
+    }
+    if (low.length > 0) {
+      body += `\n\n─────────────────────────────────────\n🔵 LOW PRIORITY FINDINGS (${low.length})\n─────────────────────────────────────\n\n`;
+      body += renderFindings(low, 0);
+    }
+
+    body += `\n\n─────────────────────────────────────\n\nImmediate attention on Critical and High Priority items is essential to safeguard the project timeline.\n\nKindly revert with confirmations or escalations at the earliest.\n\nBest regards,\nWPR Audit Team`;
+    setEmailBody(body);
+    setEmailOpen(true);
+  };
+
+  const handleSendEmail = async () => {
+    if (!emailTo.trim() || !emailBody.trim()) return;
+    setEmailSending(true);
+    try {
+      const subjectMatch = emailBody.match(/^Subject: (.+)/);
+      const subject = subjectMatch ? subjectMatch[1] : `WPR Audit – ${analysis?.project_name}`;
+      const body = emailBody.replace(/^Subject: .+\n\n/, "");
+      const res = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/send-report-email`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "apikey": import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY,
+          "Authorization": `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
+        },
+        body: JSON.stringify({ to: emailTo.trim(), subject, body }),
+      });
+      if (!res.ok) {
+        const err = await res.json();
+        throw new Error(err.error || "Send failed");
+      }
+      toast({ title: "Email sent successfully" });
+      setEmailOpen(false);
+    } catch (err: any) {
+      toast({ title: "Failed to send email", description: err.message, variant: "destructive" });
+    } finally {
+      setEmailSending(false);
+    }
+  };
+
   // Helper to find matching section analysis by name
   const findSection = (name: string): AnalysisSection | undefined => {
     if (!analysis.sections) return undefined;
@@ -72,10 +152,15 @@ export default function AnalysisReport() {
   return (
     <DashboardLayout>
       <div className="max-w-6xl mx-auto px-6 py-8">
-        {/* Back */}
-        <button onClick={() => navigate(`/project/${encodeURIComponent(analysis.project_name)}`)} className="flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground mb-6 transition-colors">
-          <ArrowLeft className="w-4 h-4" /> Back to {analysis.project_name}
-        </button>
+        {/* Back + Email */}
+        <div className="flex items-center justify-between mb-6">
+          <button onClick={() => navigate(`/project/${encodeURIComponent(analysis.project_name)}`)} className="flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground transition-colors">
+            <ArrowLeft className="w-4 h-4" /> Back to {analysis.project_name}
+          </button>
+          <Button onClick={generateEmail} variant="outline" size="sm" className="gap-2">
+            <Mail className="w-4 h-4" /> Email Report
+          </Button>
+        </div>
 
         {/* Header with Score */}
         <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} className="mb-8">
@@ -190,32 +275,32 @@ export default function AnalysisReport() {
         )}
 
         {/* Project Details */}
-        <ReportSection title="Project Details" icon={<Users className="w-4 h-4" />} delay={0.2} sectionAnalysis={findSection("Project Detail")}>
+        <ReportSection id="section-details" title="Project Details" icon={<Users className="w-4 h-4" />} delay={0.2} sectionAnalysis={findSection("Project Detail")}>
           <ProjectDetailsCard details={analysis.project_details} />
         </ReportSection>
 
         {/* Progress Comparison */}
-        <ReportSection title="Weekly Progress Comparison" icon={<TrendingUp className="w-4 h-4" />} delay={0.25} sectionAnalysis={findSection("Progress")}>
+        <ReportSection id="section-progress" title="Weekly Progress Comparison" icon={<TrendingUp className="w-4 h-4" />} delay={0.25} sectionAnalysis={findSection("Progress")}>
           <ProgressComparisonSection items={analysis.progress_comparison} />
         </ReportSection>
 
         {/* Risk Register */}
-        <ReportSection title="Risk Register & Critical Open Pointers" icon={<Shield className="w-4 h-4" />} delay={0.3} sectionAnalysis={findSection("Risk")}>
+        <ReportSection id="section-risk" title="Risk Register & Critical Open Pointers" icon={<Shield className="w-4 h-4" />} delay={0.3} sectionAnalysis={findSection("Risk")}>
           <RiskRegisterSection items={analysis.risk_register} />
         </ReportSection>
 
         {/* Selection Changes */}
-        <ReportSection title="Selection Schedule Changes" icon={<Target className="w-4 h-4" />} delay={0.35} sectionAnalysis={findSection("Selection")}>
+        <ReportSection id="section-selection" title="Selection Schedule Changes" icon={<Target className="w-4 h-4" />} delay={0.35} sectionAnalysis={findSection("Selection")}>
           <SelectionChangesSection items={analysis.selection_changes} />
         </ReportSection>
 
         {/* Design Revisions */}
-        <ReportSection title="Design Revisions" icon={<FileText className="w-4 h-4" />} delay={0.4} sectionAnalysis={findSection("Floor Plan") || findSection("Design") || findSection("Revision")}>
+        <ReportSection id="section-design" title="Design Revisions" icon={<FileText className="w-4 h-4" />} delay={0.4} sectionAnalysis={findSection("Floor Plan") || findSection("Design") || findSection("Revision")}>
           <DesignRevisionsCard revisions={analysis.design_revisions} />
         </ReportSection>
 
         {/* Timeline */}
-        <ReportSection title="Project Timeline" icon={<Calendar className="w-4 h-4" />} delay={0.45} sectionAnalysis={findSection("Timeline")}>
+        <ReportSection id="section-timeline" title="Project Timeline" icon={<Calendar className="w-4 h-4" />} delay={0.45} sectionAnalysis={findSection("Timeline")}>
           <TimelineSection items={analysis.timeline_comparison} />
         </ReportSection>
 
@@ -227,6 +312,52 @@ export default function AnalysisReport() {
         )}
 
       </div>
+
+      {/* Email Modal */}
+      <Dialog open={emailOpen} onOpenChange={setEmailOpen}>
+        <DialogContent className="max-w-2xl max-h-[90vh] flex flex-col">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Mail className="w-5 h-5" /> Email Report
+            </DialogTitle>
+          </DialogHeader>
+          <div className="flex flex-col gap-3 flex-1 overflow-hidden">
+            <div>
+              <label className="text-xs font-medium text-muted-foreground mb-1 block">Recipient Email</label>
+              <Input
+                type="email"
+                placeholder="e.g. team@company.com"
+                value={emailTo}
+                onChange={e => setEmailTo(e.target.value)}
+              />
+            </div>
+            <div className="flex-1 flex flex-col min-h-0">
+              <div className="flex items-center justify-between mb-1">
+                <label className="text-xs font-medium text-muted-foreground">Email Content (editable)</label>
+                <button
+                  onClick={() => { navigator.clipboard.writeText(emailBody); toast({ title: "Copied to clipboard" }); }}
+                  className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors"
+                >
+                  <Copy className="w-3 h-3" /> Copy
+                </button>
+              </div>
+              <Textarea
+                value={emailBody}
+                onChange={e => setEmailBody(e.target.value)}
+                className="flex-1 font-mono text-xs resize-none min-h-[380px]"
+                spellCheck={false}
+              />
+            </div>
+            <div className="flex gap-2 justify-end pt-2 border-t border-border">
+              <Button variant="outline" size="sm" onClick={() => setEmailOpen(false)}>Cancel</Button>
+              <Button size="sm" className="gap-2 gradient-bg border-0" onClick={handleSendEmail} disabled={emailSending || !emailTo.trim()}>
+                <Send className="w-4 h-4" />
+                {emailSending ? "Sending..." : "Send Email"}
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
     </DashboardLayout>
   );
 }
@@ -297,10 +428,10 @@ function SectionAnalysisInline({ section }: { section: AnalysisSection }) {
   );
 }
 
-function ReportSection({ title, icon, delay, children, sectionAnalysis }: { title: string; icon: React.ReactNode; delay: number; children: React.ReactNode; sectionAnalysis?: AnalysisSection }) {
+function ReportSection({ id, title, icon, delay, children, sectionAnalysis }: { id?: string; title: string; icon: React.ReactNode; delay: number; children: React.ReactNode; sectionAnalysis?: AnalysisSection }) {
   const [open, setOpen] = useState(true);
   return (
-    <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ delay }} className="mb-6">
+    <motion.div id={id} initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ delay }} className="mb-6">
       <button onClick={() => setOpen(!open)} className="w-full flex items-center justify-between p-4 glass-card-elevated rounded-2xl hover:bg-muted/30 transition-colors">
         <div className="flex items-center gap-2.5">
           <div className="w-8 h-8 rounded-lg gradient-bg flex items-center justify-center text-primary-foreground">{icon}</div>
@@ -316,6 +447,23 @@ function ReportSection({ title, icon, delay, children, sectionAnalysis }: { titl
       )}
     </motion.div>
   );
+}
+
+function getWarningSectionRef(category: string): { label: string; anchor: string } | null {
+  const c = category.toLowerCase();
+  if (c.includes("design") || c.includes("gfc") || c.includes("drawing") || c.includes("revision") || c.includes("td change") || c.includes("ply") || c.includes("paneling"))
+    return { label: "Design Revisions", anchor: "section-design" };
+  if (c.includes("material") || c.includes("selection") || c.includes("furniture") || c.includes("flooring") || c.includes("fixture") || c.includes("carpet") || c.includes("loose"))
+    return { label: "Selection Schedule", anchor: "section-selection" };
+  if (c.includes("hvac") || c.includes("electrical") || c.includes("fire") || c.includes("mep") || c.includes("mobiliz") || c.includes("safety") || c.includes("networking"))
+    return { label: "Project Timeline", anchor: "section-timeline" };
+  if (c.includes("end date") || c.includes("handover") || c.includes("schedule") || c.includes("date discrepancy") || c.includes("milestone") || c.includes("deadline"))
+    return { label: "Project Timeline", anchor: "section-timeline" };
+  if (c.includes("risk") || c.includes("open point") || c.includes("critical point") || c.includes("approval"))
+    return { label: "Risk Register", anchor: "section-risk" };
+  if (c.includes("progress") || c.includes("completion") || c.includes("percentage") || c.includes("snagging") || c.includes("installation"))
+    return { label: "Progress Comparison", anchor: "section-progress" };
+  return null;
 }
 
 function WarningsSection({ warnings }: { warnings: Warning[] }) {
@@ -338,23 +486,35 @@ function WarningsSection({ warnings }: { warnings: Warning[] }) {
       </h2>
       {sorted.map((w, i) => {
         const s = severityStyles[w.severity] || severityStyles.low;
+        const sectionRef = getWarningSectionRef(w.category);
         return (
           <div key={i} className={`${s.bg} border ${s.border} rounded-xl p-4 relative overflow-hidden`}>
             <div className={`absolute left-0 top-0 bottom-0 w-1 ${s.accent}`} />
             <div className="pl-3">
-              <div className="flex items-center gap-2 mb-1">
-                <span className={`text-[10px] font-bold uppercase px-2 py-0.5 rounded-full ${s.bg} ${s.icon} border ${s.border}`}>{w.severity}</span>
-                <span className="text-xs text-muted-foreground">{w.category}</span>
+              <div className="flex items-start justify-between gap-2 mb-1">
+                <div className="flex items-center gap-2 flex-wrap">
+                  <span className={`text-[10px] font-bold uppercase px-2 py-0.5 rounded-full ${s.bg} ${s.icon} border ${s.border}`}>{w.severity}</span>
+                  <span className="text-xs font-semibold">{w.category}</span>
+                </div>
+                {sectionRef && (
+                  <a
+                    href={`#${sectionRef.anchor}`}
+                    onClick={e => { e.preventDefault(); document.getElementById(sectionRef.anchor)?.scrollIntoView({ behavior: "smooth", block: "start" }); }}
+                    className="text-[10px] font-medium px-2 py-0.5 rounded-full bg-muted text-muted-foreground hover:text-foreground hover:bg-muted/80 transition-colors whitespace-nowrap cursor-pointer flex-shrink-0"
+                  >
+                    → {sectionRef.label}
+                  </a>
+                )}
               </div>
               <p className="text-sm font-medium">{w.message}</p>
               {w.impact && (
-                <p className="text-xs text-muted-foreground mt-1 flex items-center gap-1">
-                  <Zap className="w-3 h-3 flex-shrink-0" /> Impact: {w.impact}
+                <p className="text-xs text-muted-foreground mt-1 flex items-start gap-1">
+                  <Zap className="w-3 h-3 flex-shrink-0 mt-0.5" /> <span><span className="font-medium">Impact:</span> {w.impact}</span>
                 </p>
               )}
               {w.action_required && (
-                <p className="text-xs font-medium text-primary mt-1 flex items-center gap-1">
-                  <ArrowRight className="w-3 h-3 flex-shrink-0" /> {w.action_required}
+                <p className="text-xs font-medium text-primary mt-1.5 flex items-start gap-1">
+                  <ArrowRight className="w-3 h-3 flex-shrink-0 mt-0.5" /> <span>{w.action_required}</span>
                 </p>
               )}
             </div>

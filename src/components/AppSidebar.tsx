@@ -102,7 +102,7 @@ export function AppSidebar() {
       <SidebarFooter className="p-3">
         {!collapsed && (
           <p className="text-xs text-muted-foreground text-center">
-            WPR Audit v1.0
+            WPR Audit v1.3
           </p>
         )}
       </SidebarFooter>

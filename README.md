@@ -1,3 +1,3 @@
-# Welcome to your Lovable project
+# WPR Audit
 
-TODO: Document your project here
+AI-powered Weekly Progress Report comparison.

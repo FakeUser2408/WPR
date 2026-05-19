@@ -145,8 +145,14 @@ export async function analyzeWPRs(wpr1Text: string, wpr2Text: string): Promise<W
     );
 
     if (!response.ok) {
-      const error = await response.json();
-      throw new Error(error.error || `HTTP ${response.status}`);
+      const error = await response.json().catch(() => ({}));
+      const msg = error.error || error.message || `HTTP ${response.status}`;
+      if (String(msg).includes("WORKER_RESOURCE_LIMIT")) {
+        throw new Error(
+          "Analysis timed out on the server. Please try again in a minute, or analyze one project at a time.",
+        );
+      }
+      throw new Error(msg);
     }
 
     const data = await response.json();
@@ -177,8 +183,14 @@ export async function analyzeWPRsMD(wpr1Text: string, wpr2Text: string): Promise
       }
     );
     if (!response.ok) {
-      const error = await response.json();
-      throw new Error(error.error || `HTTP ${response.status}`);
+      const error = await response.json().catch(() => ({}));
+      const msg = error.error || error.message || `HTTP ${response.status}`;
+      if (String(msg).includes("WORKER_RESOURCE_LIMIT")) {
+        throw new Error(
+          "Analysis timed out on the server. Please try again in a minute, or analyze one project at a time.",
+        );
+      }
+      throw new Error(msg);
     }
     return (await response.json()) as WPRAnalysis;
   } catch (err: any) {

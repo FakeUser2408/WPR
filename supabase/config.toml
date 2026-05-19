@@ -3,6 +3,9 @@ project_id = "xeptgglalipghvyoxgon"
 [functions.analyze-wpr]
 verify_jwt = false
 
+[functions.analyze-wpr-md]
+verify_jwt = false
+
 [functions.compare-site-photos]
 verify_jwt = false
 

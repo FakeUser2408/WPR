@@ -24,10 +24,12 @@ const AUDIT_SCHEMA = `{
 }`;
 
 const TABLE_RULES = `
-List EVERY table row — do not summarize. progress_comparison: every work area from either WPR (15–40+ rows on large projects); detailed "reason" per row. selection_changes: every selection line (changed=false if same status). timeline_comparison: every timeline activity. risk_register: every risk from both WPRs. design_revisions: all revision rows. image_areas: names under "3Ds Vs Actual Site Photos" only.`;
+List EVERY table row — do not summarize. progress_comparison: every work area from either WPR (15–40+ rows on large projects); "reason" max 100 chars per row. selection_changes: every selection line (changed=false if same status). timeline_comparison: every timeline activity. risk_register: every risk from both WPRs. design_revisions: all revision rows. image_areas: names under "3Ds Vs Actual Site Photos" only.
+Output must be valid JSON only: no trailing commas, all strings escaped, all brackets closed.`;
 
 const AUDIT_RULES = `
-Using the structured JSON provided, produce executive audit output. warnings: 6–15+ items on complex/at-risk projects with specific message, 2-sentence impact, action with owner/deadline. sections: 6 sections named with substrings "Weekly Progress", "Risk Register", "Selection Schedule", "Project Timeline", "Design Revisions", "Photo Documentation" — each with 4–8 findings and 3–5 recommendations when issues exist. overall_score 0–100 weighted to worst dimension. Flag same report dates and selection regressions in warnings.`;
+Using the structured JSON provided, produce executive audit output. warnings: 6–15+ items on complex/at-risk projects with specific message, 2-sentence impact, action with owner/deadline. sections: 6 sections named with substrings "Weekly Progress", "Risk Register", "Selection Schedule", "Project Timeline", "Design Revisions", "Photo Documentation" — each with 4–8 findings and 3–5 recommendations when issues exist. overall_score 0–100 weighted to worst dimension. Flag same report dates and selection regressions in warnings.
+Valid JSON only: no trailing commas, all brackets closed.`;
 
 export function buildWprDataExtractionPrompt(sourceLabel: string): string {
   return `WPR data extractor. Input: ${sourceLabel} for WPR1 (previous) and WPR2 (current). Return ONLY JSON:

@@ -3,15 +3,18 @@ import {
   buildWprDataExtractionPrompt,
   MAX_WPR_CHARS_PER_REPORT,
 } from "./wpr-analysis-prompt.ts";
+import { parseJsonWithRepair } from "./json-repair.ts";
 
 /** Claude Haiku 4.5 via OpenRouter — matches legacy audit quality. */
 export const DEFAULT_OPENROUTER_MODEL = "anthropic/claude-haiku-4.5";
 
 const OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions";
-/** Per-call cap — keeps each edge invocation under Supabase CPU/memory limits. */
-const MAX_TOKENS_DATA = 10000;
-const MAX_TOKENS_AUDIT = 7000;
+const MAX_TOKENS_DATA = 12000;
+const MAX_TOKENS_AUDIT = 8000;
 const REQUEST_TIMEOUT_MS = 100_000;
+
+const JSON_RETRY_HINT =
+  "Your last reply was not valid JSON (truncated or trailing comma). Return ONLY one complete JSON object. No markdown. Close every array and object. Keep each progress \"reason\" under 100 characters but include every row.";
 
 export function trimWprInput(text: string): string {
   const t = text.trim();
@@ -41,12 +44,22 @@ function isRetryableError(error: unknown): boolean {
     msg.includes("abort");
 }
 
-type ChatMessage = { role: "system" | "user"; content: string };
+function isJsonParseError(error: unknown): boolean {
+  if (!(error instanceof Error)) return false;
+  return error.message.includes("JSON") || error.message.includes("Unexpected");
+}
+
+type ChatMessage = { role: "system" | "user" | "assistant"; content: string };
+
+interface ChatResult {
+  text: string;
+  truncated: boolean;
+}
 
 async function openRouterChat(
   messages: ChatMessage[],
   maxTokens: number,
-): Promise<string> {
+): Promise<ChatResult> {
   const apiKey = getApiKey();
   const modelId = getModelId();
   let lastError: Error | null = null;
@@ -68,7 +81,8 @@ async function openRouterChat(
         body: JSON.stringify({
           model: modelId,
           max_tokens: maxTokens,
-          temperature: 0.15,
+          temperature: 0.1,
+          response_format: { type: "json_object" },
           messages,
         }),
       });
@@ -95,11 +109,12 @@ async function openRouterChat(
       const text = choice?.message?.content?.trim();
       if (!text) throw new Error("No text in OpenRouter response");
 
-      if (choice?.finish_reason === "length") {
+      const truncated = choice?.finish_reason === "length";
+      if (truncated) {
         console.warn("OpenRouter response truncated (max_tokens)");
       }
 
-      return text;
+      return { text, truncated };
     } catch (error) {
       lastError = error instanceof Error ? error : new Error(String(error));
       if (attempt < 2 && isRetryableError(error)) {
@@ -116,21 +131,35 @@ async function openRouterChat(
   throw lastError ?? new Error("OpenRouter API call failed");
 }
 
-export function parseAnalysisJson(text: string): Record<string, unknown> {
-  try {
-    const cleaned = text.replace(/```json\n?/g, "").replace(/```\n?/g, "").trim();
-    return JSON.parse(cleaned) as Record<string, unknown>;
-  } catch {
-    const s = text.indexOf("{");
-    const e = text.lastIndexOf("}");
-    if (s === -1 || e === -1) throw new Error("No JSON in response");
-    return JSON.parse(text.substring(s, e + 1)) as Record<string, unknown>;
+async function chatAndParseJson(
+  messages: ChatMessage[],
+  maxTokens: number,
+  phaseLabel: string,
+): Promise<Record<string, unknown>> {
+  let lastError: Error | null = null;
+
+  for (let attempt = 0; attempt <= 1; attempt++) {
+    try {
+      const msgs = attempt === 0
+        ? messages
+        : [...messages, { role: "user" as const, content: JSON_RETRY_HINT }];
+
+      const { text, truncated } = await openRouterChat(msgs, maxTokens);
+      return parseJsonWithRepair(text);
+    } catch (error) {
+      lastError = error instanceof Error ? error : new Error(String(error));
+      console.warn(`${phaseLabel} attempt ${attempt + 1} failed:`, lastError.message);
+      if (attempt === 1 || !isJsonParseError(error)) break;
+    }
   }
+
+  throw new Error(
+    `${phaseLabel} failed: ${lastError?.message ?? "invalid JSON"}. Try analyzing again.`,
+  );
 }
 
 /**
  * Two-phase analysis: (1) extract all table rows, (2) synthesize warnings/sections.
- * Uses lightweight fetch (no Vercel AI SDK) to avoid WORKER_RESOURCE_LIMIT on Supabase.
  */
 export async function runFullWprAnalysis(
   sourceLabel: string,
@@ -142,17 +171,17 @@ export async function runFullWprAnalysis(
   const userPrompt = `---WPR 1 (Previous Week)---\n${wpr1}\n\n---WPR 2 (Current Week)---\n${wpr2}`;
 
   console.log(`Phase 1: data extraction (${wpr1.length + wpr2.length} chars input)`);
-  const dataRaw = await openRouterChat(
+  const data = await chatAndParseJson(
     [
       { role: "system", content: buildWprDataExtractionPrompt(sourceLabel) },
       { role: "user", content: userPrompt },
     ],
     MAX_TOKENS_DATA,
+    "Data extraction",
   );
-  const data = parseAnalysisJson(dataRaw);
 
   console.log("Phase 2: audit synthesis");
-  const auditRaw = await openRouterChat(
+  const audit = await chatAndParseJson(
     [
       { role: "system", content: buildWprAuditSynthesisPrompt() },
       {
@@ -161,13 +190,13 @@ export async function runFullWprAnalysis(
       },
     ],
     MAX_TOKENS_AUDIT,
+    "Audit synthesis",
   );
-  const audit = parseAnalysisJson(auditRaw);
 
   return { ...data, ...audit };
 }
 
-/** @deprecated Use runFullWprAnalysis — kept for compatibility */
+/** @deprecated Use runFullWprAnalysis */
 export async function generateWprAnalysisText(
   _systemPrompt: string,
   userPrompt: string,
@@ -178,4 +207,8 @@ export async function generateWprAnalysisText(
   const wpr2 = wpr2Match?.[1] ?? "";
   const result = await runFullWprAnalysis("WPR text", wpr1, wpr2);
   return JSON.stringify(result);
+}
+
+export function parseAnalysisJson(text: string): Record<string, unknown> {
+  return parseJsonWithRepair(text);
 }

@@ -5,6 +5,7 @@ import { Filter, BarChart3, AlertTriangle, AlertOctagon, Info, ChevronRight, Che
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import DashboardLayout from "@/components/DashboardLayout";
+import { scoreToOverallStatus } from "@/lib/health-status";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
@@ -296,7 +297,7 @@ export default function AnalysisDashboard() {
             project_name: d.project_name,
             week_number: d.week_number,
             overall_score: d.overall_score,
-            overall_status: d.overall_status,
+            overall_status: scoreToOverallStatus(d.overall_score ?? 0),
             execution_team: ad.project_details?.execution_team || "—",
             critical: getWarnings(warnings, "critical"),
             high: getWarnings(warnings, "high"),

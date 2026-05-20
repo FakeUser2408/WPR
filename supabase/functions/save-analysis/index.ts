@@ -1,6 +1,7 @@
 /// <reference lib="deno.window" />
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.3";
+import { normalizeOverallHealth } from "../_shared/health-status.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -23,14 +24,16 @@ serve(async (req) => {
       Deno.env.get("SERVICE_ROLE_KEY")!
     );
 
+    const normalized = normalizeOverallHealth(analysis);
+
     const { data, error } = await supabase.from("wpr_analyses").insert({
-      project_name: project_name || analysis.project_name || "Unknown Project",
-      wpr1_date: analysis.wpr1_date || "",
-      wpr2_date: analysis.wpr2_date || "",
-      overall_score: analysis.overall_score || 0,
-      overall_status: analysis.overall_status || "critical",
-      summary: analysis.summary || "",
-      analysis_data: analysis,
+      project_name: project_name || normalized.project_name || "Unknown Project",
+      wpr1_date: normalized.wpr1_date || "",
+      wpr2_date: normalized.wpr2_date || "",
+      overall_score: normalized.overall_score || 0,
+      overall_status: normalized.overall_status,
+      summary: normalized.summary || "",
+      analysis_data: normalized,
       week_number: week_number || null,
     }).select("id").single();
 

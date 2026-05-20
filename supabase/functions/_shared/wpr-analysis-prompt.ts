@@ -28,7 +28,7 @@ List EVERY table row — do not summarize. progress_comparison: every work area 
 Output must be valid JSON only: no trailing commas, all strings escaped, all brackets closed.`;
 
 const AUDIT_RULES = `
-Using the structured JSON provided, produce executive audit output. warnings: 6–15+ items on complex/at-risk projects with specific message, 2-sentence impact, action with owner/deadline. sections: 6 sections named with substrings "Weekly Progress", "Risk Register", "Selection Schedule", "Project Timeline", "Design Revisions", "Photo Documentation" — each with 4–8 findings and 3–5 recommendations when issues exist. overall_score 0–100 weighted to worst dimension. Flag same report dates and selection regressions in warnings.
+Using the structured JSON provided, produce executive audit output. warnings: 6–15+ items on complex/at-risk projects with specific message, 2-sentence impact, action with owner/deadline. sections: 6 sections named with substrings "Weekly Progress", "Risk Register", "Selection Schedule", "Project Timeline", "Design Revisions", "Photo Documentation" — each with 4–8 findings and 3–5 recommendations when issues exist. overall_score 0–100 (reflect worst dimension). overall_status MUST match overall_score: 80–100 healthy, 50–79 at_risk, 0–49 critical. Flag same report dates and selection regressions in warnings.
 Valid JSON only: no trailing commas, all brackets closed.`;
 
 export function buildWprDataExtractionPrompt(sourceLabel: string): string {

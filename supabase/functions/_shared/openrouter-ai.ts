@@ -4,6 +4,7 @@ import {
   MAX_WPR_CHARS_PER_REPORT,
 } from "./wpr-analysis-prompt.ts";
 import { parseJsonWithRepair } from "./json-repair.ts";
+import { normalizeOverallHealth } from "./health-status.ts";
 
 /** Claude Haiku 4.5 via OpenRouter — matches legacy audit quality. */
 export const DEFAULT_OPENROUTER_MODEL = "anthropic/claude-haiku-4.5";
@@ -193,7 +194,7 @@ export async function runFullWprAnalysis(
     "Audit synthesis",
   );
 
-  return { ...data, ...audit };
+  return normalizeOverallHealth({ ...data, ...audit });
 }
 
 /** @deprecated Use runFullWprAnalysis */

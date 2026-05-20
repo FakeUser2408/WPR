@@ -1,4 +1,5 @@
 import { supabase } from "@/integrations/supabase/client";
+import { normalizeOverallHealth, scoreToOverallStatus } from "@/lib/health-status";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -156,7 +157,7 @@ export async function analyzeWPRs(wpr1Text: string, wpr2Text: string): Promise<W
     }
 
     const data = await response.json();
-    return data as WPRAnalysis;
+    return normalizeOverallHealth(data as WPRAnalysis);
   } catch (err: any) {
     if (err.message?.includes("429") || err.message?.includes("RESOURCE_EXHAUSTED")) {
       throw new Error("The AI service is experiencing high demand. Please wait a moment and try again.");
@@ -192,7 +193,7 @@ export async function analyzeWPRsMD(wpr1Text: string, wpr2Text: string): Promise
       }
       throw new Error(msg);
     }
-    return (await response.json()) as WPRAnalysis;
+    return normalizeOverallHealth((await response.json()) as WPRAnalysis);
   } catch (err: any) {
     throw new Error(err.message || "Analysis failed");
   }
@@ -204,17 +205,18 @@ export async function analyzeWPRsMD(wpr1Text: string, wpr2Text: string): Promise
  * Save analysis to the database directly.
  */
 export async function saveAnalysis(analysis: WPRAnalysis, weekNumber?: number): Promise<string> {
+  const normalized = normalizeOverallHealth(analysis);
   const { data, error } = await supabase
     .from("wpr_analyses")
     .insert({
-      project_name: analysis.project_name,
-      wpr1_date: analysis.wpr1_date || "",
-      wpr2_date: analysis.wpr2_date || "",
-      overall_score: analysis.overall_score || 0,
-      overall_status: analysis.overall_status || "critical",
-      summary: analysis.summary || "",
-      analysis_data: analysis as any,
-      week_number: weekNumber ?? analysis.week_number ?? null,
+      project_name: normalized.project_name,
+      wpr1_date: normalized.wpr1_date || "",
+      wpr2_date: normalized.wpr2_date || "",
+      overall_score: normalized.overall_score || 0,
+      overall_status: normalized.overall_status,
+      summary: normalized.summary || "",
+      analysis_data: normalized as any,
+      week_number: weekNumber ?? normalized.week_number ?? null,
     })
     .select("id")
     .single();
@@ -236,18 +238,18 @@ export async function getAnalysisHistory(): Promise<WPRAnalysis[]> {
 
   return (data || []).map((row) => {
     const analysis = (row.analysis_data as any) || {};
-    return {
+    return normalizeOverallHealth({
       ...analysis,
       id: row.id,
       project_name: row.project_name,
       wpr1_date: row.wpr1_date,
       wpr2_date: row.wpr2_date,
       overall_score: row.overall_score,
-      overall_status: row.overall_status as any,
+      overall_status: scoreToOverallStatus(row.overall_score ?? 0),
       summary: row.summary || analysis.summary || "",
       week_number: row.week_number,
       created_at: row.created_at,
-    } as WPRAnalysis;
+    }) as WPRAnalysis;
   });
 }
 
@@ -264,18 +266,17 @@ export async function getAnalysisById(id: string): Promise<WPRAnalysis> {
   if (error) throw new Error(error.message || "Failed to load analysis");
 
   const analysis = (data.analysis_data as any) || {};
-  return {
+  return normalizeOverallHealth({
     ...analysis,
     id: data.id,
     project_name: data.project_name,
     wpr1_date: data.wpr1_date,
     wpr2_date: data.wpr2_date,
     overall_score: data.overall_score,
-    overall_status: data.overall_status as any,
     summary: data.summary || analysis.summary || "",
     week_number: data.week_number,
     created_at: data.created_at,
-  } as WPRAnalysis;
+  }) as WPRAnalysis;
 }
 
 /**

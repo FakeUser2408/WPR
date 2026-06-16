@@ -1,5 +1,17 @@
 project_id = "xeptgglalipghvyoxgon"
 
+# Pass secrets from .env when running functions locally
+[edge_runtime.secrets]
+OPENROUTER_API_KEY = "env(OPENROUTER_API_KEY)"
+OPENROUTER_MODEL = "env(OPENROUTER_MODEL)"
+OPENROUTER_MODEL_FALLBACKS = "env(OPENROUTER_MODEL_FALLBACKS)"
+DB_URL = "env(DB_URL)"
+SERVICE_ROLE_KEY = "env(SERVICE_ROLE_KEY)"
+SUPABASE_ANON_KEY = "env(SUPABASE_ANON_KEY)"
+GEMINI_API_KEY = "env(GEMINI_API_KEY)"
+RESEND_API_KEY = "env(RESEND_API_KEY)"
+EMAIL_FROM = "env(EMAIL_FROM)"
+
 [functions.analyze-wpr]
 verify_jwt = false
 
@@ -22,4 +34,7 @@ verify_jwt = false
 verify_jwt = false
 
 [functions.upload-wpr]
+verify_jwt = false
+
+[functions.keep-alive]
 verify_jwt = false

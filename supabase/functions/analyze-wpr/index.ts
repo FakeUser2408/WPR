@@ -59,8 +59,9 @@ serve(async (req: Request) => {
     }
 
     let analysis: Record<string, unknown>;
+    const model = typeof body.model === "string" ? body.model : undefined;
     try {
-      analysis = await runFullWprAnalysis("extracted PDF text", wpr1_text, wpr2_text);
+      analysis = await runFullWprAnalysis("extracted PDF text", wpr1_text, wpr2_text, { model });
     } catch (e) {
       const message = e instanceof Error ? e.message : "AI API error";
       return new Response(JSON.stringify({ error: message }), {

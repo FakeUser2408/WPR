@@ -66,11 +66,13 @@ serve(async (req: Request) => {
     }
 
     let analysis: Record<string, unknown>;
+    const model = typeof body.model === "string" ? body.model : undefined;
     try {
       analysis = await runFullWprAnalysis(
         "markdown from ClickUp (read every table row)",
         wpr1_text,
         wpr2_text,
+        { model },
       );
     } catch (e) {
       const message = e instanceof Error ? e.message : "AI API error";

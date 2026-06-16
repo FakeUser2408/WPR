@@ -125,6 +125,12 @@ export interface TimelineItem {
 
 // ─── AI Analysis Functions ────────────────────────────────────────────────────
 
+/** Optional per-request model override from VITE_OPENROUTER_MODEL (local dev). */
+function openRouterModelPayload(): { model?: string } {
+  const model = import.meta.env.VITE_OPENROUTER_MODEL?.trim();
+  return model ? { model } : {};
+}
+
 /**
  * Analyze two WPR texts via the analyze-wpr edge function.
  */
@@ -141,6 +147,7 @@ export async function analyzeWPRs(wpr1Text: string, wpr2Text: string): Promise<W
         body: JSON.stringify({
           wpr1_text: wpr1Text,
           wpr2_text: wpr2Text,
+          ...openRouterModelPayload(),
         }),
       }
     );
@@ -180,7 +187,11 @@ export async function analyzeWPRsMD(wpr1Text: string, wpr2Text: string): Promise
           "apikey": import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY,
           "Authorization": `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
         },
-        body: JSON.stringify({ wpr1_text: wpr1Text, wpr2_text: wpr2Text }),
+        body: JSON.stringify({
+          wpr1_text: wpr1Text,
+          wpr2_text: wpr2Text,
+          ...openRouterModelPayload(),
+        }),
       }
     );
     if (!response.ok) {

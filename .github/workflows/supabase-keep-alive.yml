@@ -1,9 +1,12 @@
 # Prevents Supabase free-tier project from pausing due to inactivity (pauses after ~7 days idle).
-# Runs daily at 06:00 UTC. Also trigger manually: Actions → Supabase Keep Alive → Run workflow.
+# Runs daily at 06:00 UTC. Manual run: Actions → Supabase Keep Alive → Run workflow.
 #
-# Required GitHub repo secrets (Settings → Secrets and variables → Actions):
-#   SUPABASE_URL          e.g. https://fjcpbyjbhnedvieheeng.supabase.co
-#   SUPABASE_ANON_KEY     your publishable/anon key
+# GitHub repo secrets (Settings → Secrets and variables → Actions):
+#   SUPABASE_URL        https://YOUR_PROJECT.supabase.co  (no trailing slash)
+#   SUPABASE_ANON_KEY   publishable or anon key from Supabase Dashboard → API
+#
+# Optional: deploy keep-alive for a dedicated ping endpoint
+#   supabase functions deploy keep-alive
 
 name: Supabase Keep Alive
 
@@ -17,18 +20,67 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
-      - name: Ping keep-alive edge function
+      - name: Ping Supabase project
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
         run: |
-          curl -fsS --retry 3 --retry-delay 10 -X POST \
-            "${{ secrets.SUPABASE_URL }}/functions/v1/keep-alive" \
-            -H "Authorization: Bearer ${{ secrets.SUPABASE_ANON_KEY }}" \
-            -H "apikey: ${{ secrets.SUPABASE_ANON_KEY }}" \
-            -H "Content-Type: application/json" \
-            -d '{}'
+          set -euo pipefail
 
-      - name: Ping Supabase REST API
-        run: |
-          curl -fsS --retry 3 --retry-delay 10 \
-            "${{ secrets.SUPABASE_URL }}/rest/v1/" \
-            -H "apikey: ${{ secrets.SUPABASE_ANON_KEY }}" \
-            -H "Authorization: Bearer ${{ secrets.SUPABASE_ANON_KEY }}"
+          if [ -z "${SUPABASE_URL:-}" ] || [ -z "${SUPABASE_ANON_KEY:-}" ]; then
+            echo "ERROR: Set SUPABASE_URL and SUPABASE_ANON_KEY in GitHub Actions secrets."
+            exit 1
+          fi
+
+          URL="${SUPABASE_URL%/}"
+          echo "Pinging $URL"
+
+          ping_endpoint() {
+            local name="$1"
+            local endpoint="$2"
+            local method="${3:-GET}"
+            local body="${4:-}"
+
+            echo "--- $name ---"
+            if [ "$method" = "POST" ]; then
+              HTTP=$(curl -sS -o /tmp/ping_body.txt -w "%{http_code}" -X POST "$endpoint" \
+                -H "Authorization: Bearer $SUPABASE_ANON_KEY" \
+                -H "apikey: $SUPABASE_ANON_KEY" \
+                -H "Content-Type: application/json" \
+                -d "$body")
+            else
+              HTTP=$(curl -sS -o /tmp/ping_body.txt -w "%{http_code}" "$endpoint" \
+                -H "Authorization: Bearer $SUPABASE_ANON_KEY" \
+                -H "apikey: $SUPABASE_ANON_KEY")
+            fi
+            cat /tmp/ping_body.txt || true
+            echo ""
+            echo "HTTP $HTTP"
+            echo "$HTTP"
+          }
+
+          # 1) REST API — works with publishable/anon key (do NOT use /rest/v1/ root — returns 401)
+          CODE=$(ping_endpoint "REST wpr_analyses" \
+            "$URL/rest/v1/wpr_analyses?select=id&limit=1")
+          if [ "$CODE" -ge 200 ] && [ "$CODE" -lt 300 ]; then
+            echo "SUCCESS via REST API"
+            exit 0
+          fi
+
+          # 2) keep-alive edge function (after: supabase functions deploy keep-alive)
+          CODE=$(ping_endpoint "keep-alive" "$URL/functions/v1/keep-alive" POST '{}')
+          if [ "$CODE" -ge 200 ] && [ "$CODE" -lt 300 ]; then
+            echo "SUCCESS via keep-alive"
+            exit 0
+          fi
+
+          # 3) fallback: get-analyses edge function
+          CODE=$(ping_endpoint "get-analyses" "$URL/functions/v1/get-analyses")
+          if [ "$CODE" -ge 200 ] && [ "$CODE" -lt 300 ]; then
+            echo "SUCCESS via get-analyses"
+            exit 0
+          fi
+
+          echo "ERROR: All ping methods failed."
+          echo "Check: secrets correct, project not paused, SUPABASE_URL has https:// and no trailing slash."
+          exit 1

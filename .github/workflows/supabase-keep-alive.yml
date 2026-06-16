@@ -4,9 +4,6 @@
 # GitHub repo secrets (Settings → Secrets and variables → Actions):
 #   SUPABASE_URL        https://YOUR_PROJECT.supabase.co  (no trailing slash)
 #   SUPABASE_ANON_KEY   publishable or anon key from Supabase Dashboard → API
-#
-# Optional: deploy keep-alive for a dedicated ping endpoint
-#   supabase functions deploy keep-alive
 
 name: Supabase Keep Alive
 
@@ -35,52 +32,47 @@ jobs:
           URL="${SUPABASE_URL%/}"
           echo "Pinging $URL"
 
-          ping_endpoint() {
+          try_ping() {
             local name="$1"
             local endpoint="$2"
             local method="${3:-GET}"
-            local body="${4:-}"
+            local http_code
 
             echo "--- $name ---"
+            echo "URL: $endpoint"
+
             if [ "$method" = "POST" ]; then
-              HTTP=$(curl -sS -o /tmp/ping_body.txt -w "%{http_code}" -X POST "$endpoint" \
+              http_code=$(curl -sS -o /tmp/ping_body.txt -w "%{http_code}" -X POST "$endpoint" \
                 -H "Authorization: Bearer $SUPABASE_ANON_KEY" \
                 -H "apikey: $SUPABASE_ANON_KEY" \
                 -H "Content-Type: application/json" \
-                -d "$body")
+                -d '{}')
             else
-              HTTP=$(curl -sS -o /tmp/ping_body.txt -w "%{http_code}" "$endpoint" \
+              http_code=$(curl -sS -o /tmp/ping_body.txt -w "%{http_code}" "$endpoint" \
                 -H "Authorization: Bearer $SUPABASE_ANON_KEY" \
                 -H "apikey: $SUPABASE_ANON_KEY")
             fi
+
             cat /tmp/ping_body.txt || true
             echo ""
-            echo "HTTP $HTTP"
-            echo "$HTTP"
+            echo "HTTP $http_code"
+
+            if [ "$http_code" -ge 200 ] && [ "$http_code" -lt 300 ]; then
+              echo "SUCCESS via $name"
+              exit 0
+            fi
           }
 
-          # 1) REST API — works with publishable/anon key (do NOT use /rest/v1/ root — returns 401)
-          CODE=$(ping_endpoint "REST wpr_analyses" \
-            "$URL/rest/v1/wpr_analyses?select=id&limit=1")
-          if [ "$CODE" -ge 200 ] && [ "$CODE" -lt 300 ]; then
-            echo "SUCCESS via REST API"
-            exit 0
-          fi
+          # 1) REST API — works with publishable/anon key
+          try_ping "REST wpr_analyses" \
+            "$URL/rest/v1/wpr_analyses?select=id&limit=1"
 
-          # 2) keep-alive edge function (after: supabase functions deploy keep-alive)
-          CODE=$(ping_endpoint "keep-alive" "$URL/functions/v1/keep-alive" POST '{}')
-          if [ "$CODE" -ge 200 ] && [ "$CODE" -lt 300 ]; then
-            echo "SUCCESS via keep-alive"
-            exit 0
-          fi
+          # 2) keep-alive edge function
+          try_ping "keep-alive" "$URL/functions/v1/keep-alive" POST
 
-          # 3) fallback: get-analyses edge function
-          CODE=$(ping_endpoint "get-analyses" "$URL/functions/v1/get-analyses")
-          if [ "$CODE" -ge 200 ] && [ "$CODE" -lt 300 ]; then
-            echo "SUCCESS via get-analyses"
-            exit 0
-          fi
+          # 3) get-analyses edge function
+          try_ping "get-analyses" "$URL/functions/v1/get-analyses"
 
           echo "ERROR: All ping methods failed."
-          echo "Check: secrets correct, project not paused, SUPABASE_URL has https:// and no trailing slash."
+          echo "Check secrets: SUPABASE_URL and SUPABASE_ANON_KEY (publishable key from Supabase Dashboard → API)."
           exit 1
